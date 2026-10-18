@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+
+# Empaquetado (PyInstaller)
+build/
+dist/
+*.exe
+
+# Datos locales de cada PC (retratos aprendidos, registros)
+input_map.json
+*.log
+
+# Documentos internos de trabajo y herramientas del editor
+docs/_interno/
+.superpowers/
+.claude/

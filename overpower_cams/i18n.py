@@ -1,0 +1,438 @@
+"""Idioma de la interfaz (español / inglés).
+
+Los textos se escriben en español en el código y pasan por `tr("texto", nombre=valor)`:
+el texto en español es también la clave del catálogo `EN`. Con el idioma "en" se devuelve
+la traducción (si falta, el español: nunca falla) y luego se aplica `.format(**kw)`.
+
+El idioma se elige UNA vez al arrancar (`set_language`), antes de crear cualquier texto;
+cambiarlo en Ajustes se aplica al reiniciar la app.
+"""
+from __future__ import annotations
+
+LANGUAGES = {"es": "Español", "en": "English"}
+DEFAULT_LANGUAGE = "es"
+
+_language = DEFAULT_LANGUAGE
+
+
+def set_language(code: str) -> None:
+    """Fija el idioma ("es" o "en"); cualquier otro valor deja el español."""
+    global _language
+    _language = code if code in LANGUAGES else DEFAULT_LANGUAGE
+
+
+def get_language() -> str:
+    return _language
+
+
+def tr_for(code: str, text: str, **kw) -> str:
+    """Como `tr`, pero en el idioma `code` (p. ej. para avisar en el idioma recién elegido)."""
+    out = EN.get(text, text) if code == "en" else text
+    if not kw:
+        return out
+    try:
+        return out.format(**kw)
+    except (KeyError, IndexError, ValueError):
+        return text.format(**kw)   # traducción con marcadores distintos: mejor el español
+
+
+def tr(text: str, **kw) -> str:
+    """`text` (español, también la clave) en el idioma actual, con `.format(**kw)` si hay kw."""
+    return tr_for(_language, text, **kw)
+
+
+def detect_default() -> str:
+    """"es" si Windows está en español (cualquier variante); si no, o ante cualquier error, "en"."""
+    try:
+        import ctypes
+        lang_id = ctypes.windll.kernel32.GetUserDefaultUILanguage()
+        return "es" if (lang_id & 0x3FF) == 0x0A else "en"
+    except Exception:  # noqa: BLE001 - sin Windows o sin ctypes: inglés
+        return "en"
+
+
+# Catálogo español -> inglés. Lo revisa tests/test_i18n.py: cada tr("…") del código tiene
+# su entrada, no sobran entradas y los marcadores {nombre} coinciden.
+EN: dict[str, str] = {
+    # ---- app / config ----
+    "OverPower · Cámaras Dota": "OverPower · Dota Player Cams",
+    "Los detalles están en:\n{path}": "Details were saved to:\n{path}",
+    "No pude guardar los detalles.": "Couldn't save the details.",
+    "Ocurrió un error inesperado y la app puede no funcionar bien.":
+        "An unexpected error occurred and the app may not work properly.",
+    "Cierra lo que lo esté usando y vuelve a abrir la app.":
+        "Close whatever is using it and open the app again.",
+    "no pude guardar los retratos: {error}": "couldn't save the portraits: {error}",
+    "no pude escuchar teclado y mouse: {error}": "couldn't listen to keyboard and mouse: {error}",
+
+    # ---- checks: instrucciones ----
+    "1. Abre OBS Studio.\n"
+    "2. Ve a Herramientas → Ajustes del servidor WebSocket.\n"
+    "3. Marca «Habilitar servidor WebSocket».\n"
+    "4. Revisa que el puerto sea el mismo que está en Ajustes de esta app (por defecto 4455).\n"
+    "5. Pulsa «Mostrar información de conexión», copia la contraseña y pégala en Ajustes de esta app.":
+        "1. Open OBS Studio.\n"
+        "2. Go to Tools → WebSocket Server Settings.\n"
+        "3. Check \"Enable WebSocket server\".\n"
+        "4. Make sure the port matches the one in this app's Settings (4455 by default).\n"
+        "5. Click \"Show Connect Info\", copy the password and paste it in this app's Settings.",
+    "OBS está abierto, pero rechazó la contraseña.\n"
+    "1. En OBS ve a Herramientas → Ajustes del servidor WebSocket.\n"
+    "2. Pulsa «Mostrar información de conexión» y copia la contraseña.\n"
+    "3. Pégala en Ajustes de esta app.":
+        "OBS is open, but it rejected the password.\n"
+        "1. In OBS, go to Tools → WebSocket Server Settings.\n"
+        "2. Click \"Show Connect Info\" and copy the password.\n"
+        "3. Paste it in this app's Settings.",
+    "Dota está abierto pero no está mandando datos a la app.\n"
+    "1. Entra a una partida o a ver una repetición: en el menú principal Dota no manda nada.\n"
+    "2. Revisa que la revisión «Archivo GSI» esté en verde y reinicia Dota si la acabas de arreglar.\n"
+    "3. Si sigue sin llegar nada: en Steam, clic derecho en Dota 2 → Propiedades → Opciones de "
+    "lanzamiento y agrega  -gamestateintegration  (Valve lo documenta como necesario; en algunos "
+    "equipos funciona sin esa opción).\n"
+    "4. Cierra Dota por completo y ábrelo de nuevo.":
+        "Dota is open but isn't sending data to the app.\n"
+        "1. Join a match or watch a replay: Dota sends nothing from the main menu.\n"
+        "2. Make sure the \"GSI file\" check is green, and restart Dota if you just fixed it.\n"
+        "3. If still nothing arrives: in Steam, right-click Dota 2 → Properties → Launch Options "
+        "and add  -gamestateintegration  (Valve documents it as required; on some PCs it works "
+        "without it).\n"
+        "4. Close Dota completely and open it again.",
+    "Para importar la escena de OBS (la que te pasó el organizador, o la de ejemplo\n"
+    "«example-scene.json» que viene junto a la app):\n"
+    "1. En OBS ve a Colección de escenas → Importar.\n"
+    "2. Agrega el archivo .json de la escena y confirma.\n"
+    "3. Luego Colección de escenas → elige la colección importada.\n"
+    "Si ya la tenías, revisa que los nombres de las cámaras sean exactamente CAM_EQ1_1 … CAM_EQ2_5.":
+        "To import the OBS scene (the one your organizer gave you, or the example\n"
+        "«example-scene.json» that comes with the app):\n"
+        "1. In OBS, go to Scene Collection → Import.\n"
+        "2. Add the scene's .json file and confirm.\n"
+        "3. Then open Scene Collection → choose the imported collection.\n"
+        "If you already had it, check that the camera names are exactly CAM_EQ1_1 … CAM_EQ2_5.",
+
+    # ---- checks: títulos y botones ----
+    "Dota instalado": "Dota installed",
+    "Archivo GSI": "GSI file",
+    "Datos de Dota llegando": "Dota data arriving",
+    "Teclas de espectador": "Spectator hotkeys",
+    "OBS y WebSocket": "OBS and WebSocket",
+    "Escena de OBS": "OBS scene",
+    "Imágenes de Borde y Marco": "Borde and Marco images",
+    "Retratos": "Portraits",
+    "Buscar…": "Browse…",
+    "Arreglar": "Fix",
+    "{first} y {last}": "{first} and {last}",
+
+    # ---- checks: detalles ----
+    "No encontré Dota": "Dota not found",
+    "Esa carpeta no parece ser Dota 2 (falta game\\dota): {path}":
+        "That folder doesn't look like Dota 2 (game\\dota is missing): {path}",
+    "No encontré Dota: la carpeta {path} no existe": "Dota not found: the folder {path} doesn't exist",
+    "Elige la carpeta donde está instalado Dota 2 (la que se llama «dota 2 beta» "
+    "y contiene la carpeta «game»). Suele estar en <tu biblioteca de Steam>\\steamapps\\common.":
+        "Choose the folder where Dota 2 is installed (the one named \"dota 2 beta\" that contains "
+        "the \"game\" folder). It is usually in <your Steam library>\\steamapps\\common.",
+    "No se puede revisar sin la carpeta de Dota": "Can't check without the Dota folder",
+    "El archivo que le dice a Dota dónde mandar los datos está bien":
+        "The file that tells Dota where to send data is OK",
+    "Falta el archivo que le dice a Dota que mande los datos a esta app":
+        "The file that tells Dota to send data to this app is missing",
+    "El archivo de Dota para esta app tiene un contenido distinto al esperado":
+        "Dota's file for this app has unexpected content",
+    "«Arreglar» crea la carpeta gamestate_integration si no existe y escribe el archivo "
+    "{file}. Dota lo lee al arrancar: si está abierto, hay que reiniciarlo.":
+        "\"Fix\" creates the gamestate_integration folder if needed and writes the file {file}. "
+        "Dota reads it at startup: if it's open, restart it.",
+    "Llegan datos de Dota": "Data is arriving from Dota",
+    "Sin datos: Abre Dota y entra a una partida": "No data: open Dota and join a match",
+    "Dota está abierto pero no llegan datos": "Dota is open but no data is arriving",
+    "No encontré el archivo de teclas de Dota (dotakeys_personal.lst). "
+    "Las teclas rápidas no se van a poder usar; los clicks en retratos y GSI sí.":
+        "Dota's hotkey file (dotakeys_personal.lst) was not found. Hotkeys won't work; "
+        "portrait clicks and GSI will.",
+    "Abre Dota con la misma cuenta de Steam, entra a Ajustes → Teclas rápidas y "
+    "cierra la ventana para que Dota cree el archivo. Luego pulsa «Revisar todo de nuevo».":
+        "Open Dota with the same Steam account, go to Settings → Hotkeys and close the window so "
+        "Dota creates the file. Then click \"Re-check everything\".",
+    "Faltan teclas de espectador para: {slots}": "Missing spectator hotkeys for: {slots}",
+    "«Arreglar» (con Dota cerrado) hace una copia de seguridad del archivo y asigna "
+    "las teclas 1 a 9 y 0 a los jugadores 1 a 10. Si otra acción de espectador usa "
+    "esa tecla, la pasa a una libre (F9).":
+        "\"Fix\" (with Dota closed) backs up the file and assigns keys 1 to 9 and 0 to players "
+        "1 to 10. If another spectator action uses one of those keys, it moves that action to a "
+        "free key (F9).",
+    "Está activada la opción «Copiar las teclas rápidas del espectador desde la "
+    "sección Teclas rápidas»; puede pisar las teclas de espectador":
+        "The option that copies spectator hotkeys from the Hotkeys section is on; it can "
+        "overwrite the spectator hotkeys",
+    "«Arreglar» (con Dota cerrado) desactiva esa opción, con copia de seguridad.":
+        "\"Fix\" (with Dota closed) turns that option off, with a backup.",
+    "Los 10 jugadores tienen su tecla de espectador": "All 10 players have a spectator hotkey",
+    "Se perdió la conexión con OBS — reintentando ({error})": "Lost connection to OBS — retrying ({error})",
+    "Conectado a OBS en {host}:{port}": "Connected to OBS at {host}:{port}",
+    "Falta la contraseña de OBS: escríbela en Ajustes": "OBS password missing: enter it in Settings",
+    "Contraseña incorrecta: cámbiala en Ajustes": "Wrong password: change it in Settings",
+    "Se perdió la conexión con OBS — reintentando": "Lost connection to OBS — retrying",
+    "No pude conectar con OBS en {host}:{port}. ¿Está abierto y con el "
+    "servidor WebSocket activado?":
+        "Couldn't connect to OBS at {host}:{port}. Is it open with the WebSocket server enabled?",
+    "No pude conectar con OBS: {error}": "Couldn't connect to OBS: {error}",
+    "No se puede revisar la escena: OBS no está conectado": "Can't check the scene: OBS is not connected",
+    "No existe la escena «{scene}» en OBS": "The \"{scene}\" scene doesn't exist in OBS",
+    "Faltan cámaras en la escena: {names}": "Cameras missing from the scene: {names}",
+    "Faltan en la escena: {names} (las cámaras funcionan igual)":
+        "Missing from the scene: {names} (the cameras still work)",
+    "«Arreglar» crea esos elementos vacíos y ocultos en la escena "
+    "«{scene}». No cambia nada más de la escena.":
+        "\"Fix\" creates those items, empty and hidden, in the \"{scene}\" scene. Nothing else in "
+        "the scene changes.",
+    "«{scene}» tiene las 10 cámaras, Borde y Marco": "\"{scene}\" has all 10 cameras, Borde and Marco",
+    "{name} sin imagen asignada": "{name} has no image assigned",
+    "{name}: la imagen no existe en esta PC ({path})": "{name}: the image doesn't exist on this PC ({path})",
+    "Sin revisar: OBS no está conectado": "Not checked: OBS is not connected",
+    "Sin revisar: se perdió la conexión con OBS": "Not checked: lost connection to OBS",
+    "Las imágenes de los acompañantes existen": "The Borde and Marco images exist",
+    "«Arreglar» le pone a {names} la imagen de la carpeta de la app "
+    "({folder}); el cambio se hace en vivo, con OBS abierto.":
+        "\"Fix\" gives {names} the image from the app folder ({folder}); the change is made live, "
+        "with OBS open.",
+    "{name} no tiene imagen en la carpeta de la app: copia {name}.png en "
+    "{folder} y pulsa «Arreglar», elígela con «Buscar… {name}», o ponla en "
+    "OBS (clic derecho en «{name}» → Propiedades).":
+        "{name} has no image in the app folder: copy {name}.png to {folder} and click \"Fix\", "
+        "pick one with \"Browse… {name}\", or set it in OBS (right-click \"{name}\" → Properties).",
+    "Los 10 ubicados ({n} afinados con tus clicks)": "All 10 located ({n} refined by your clicks)",
+
+    # ---- checks: arreglos ----
+    "Primero hay que elegir la carpeta de Dota": "Choose the Dota folder first",
+    "Esa carpeta no parece ser Dota 2 (falta game\\dota): "
+    "elige la carpeta correcta con «Buscar…»":
+        "That folder doesn't look like Dota 2 (game\\dota is missing): choose the right folder "
+        "with \"Browse…\"",
+    "No pude escribir el archivo GSI: {error}": "Couldn't write the GSI file: {error}",
+    "Listo: escribí {path}.": "Done: wrote {path}.",
+    "Reinicia Dota para que lo lea.": "Restart Dota so it reads it.",
+    "No encontré el archivo de teclas de Dota (dotakeys_personal.lst)":
+        "Dota's hotkey file (dotakeys_personal.lst) was not found",
+    "Cierra Dota por completo y vuelve a intentar": "Close Dota completely and try again",
+    "No pude arreglar el archivo de teclas: {error}": "Couldn't fix the hotkey file: {error}",
+    "Las teclas de espectador ya estaban bien; no cambié nada":
+        "The spectator hotkeys were already fine; nothing was changed",
+    "No pude asignar todas las teclas de espectador; no cambié nada":
+        "Couldn't assign all spectator hotkeys; nothing was changed",
+    "No pude guardar el archivo de teclas: {error}": "Couldn't save the hotkey file: {error}",
+    "Listo: arreglé las teclas de espectador. Copia de seguridad: {backup}. "
+    "Si al abrir Steam aparece un conflicto de sincronización (Steam Cloud), "
+    "elige la versión local.":
+        "Done: fixed the spectator hotkeys. Backup: {backup}. If Steam shows a sync conflict "
+        "(Steam Cloud) when it opens, choose the local version.",
+    "No puedo arreglar la escena: OBS no está conectado o falta la escena «{scene}»":
+        "Can't fix the scene: OBS is not connected or the \"{scene}\" scene is missing",
+    "No falta ningún acompañante en la escena": "Borde and Marco are already in the scene",
+    "OBS no me dejó crear «{name}» (ya creé: {done})":
+        "OBS refused to create \"{name}\" (already created: {done})",
+    "OBS no me dejó crear «{name}»": "OBS refused to create \"{name}\"",
+    "Listo: creé {names} en la escena «{scene}», vacío y oculto. "
+    "Ponle su imagen en OBS si hace falta.":
+        "Done: created {names} in the \"{scene}\" scene, empty and hidden. Set its image in OBS "
+        "if needed.",
+    "No puedo arreglar las imágenes: OBS no está conectado": "Can't fix the images: OBS is not connected",
+    "Los acompañantes ya tienen imagen": "Borde and Marco already have images",
+    "OBS no me dejó cambiar la imagen de {name} (ya cambié: {done})":
+        "OBS refused to change the image of {name} (already changed: {done})",
+    "OBS no me dejó cambiar la imagen de {name}": "OBS refused to change the image of {name}",
+    "No encuentro {files} en la carpeta de la app ({folder}). "
+    "Cópialo ahí y vuelve a pulsar «Arreglar», o elige la imagen con «Buscar…».":
+        "Can't find {files} in the app folder ({folder}). Copy it there and click \"Fix\" again, "
+        "or pick the image with \"Browse…\".",
+    "{name} ahora usa {path}": "{name} now uses {path}",
+    "Listo: {changes}.": "Done: {changes}.",
+    "La revisión «{id}» no tiene un arreglo automático": "The \"{id}\" check has no automatic fix",
+
+    # ---- dota_keys ----
+    "el archivo no tiene la sección \"Keys\"": "the file has no \"Keys\" section",
+
+    # ---- engine (eventos y motivos) ----
+    "oculto": "hidden",
+    "sin partida": "no match",
+    "fuera de juego ({state})": "out of game ({state})",
+    "fuera de juego ({state}) → oculto": "out of game ({state}) → hidden",
+    "sin héroe": "no hero",
+    "sin héroe → oculto": "no hero → hidden",
+    "retrato {slot} mal aprendido: se vuelve a aprender": "portrait {slot} was learned wrong: learning it again",
+    "la tecla {key} no seleccionó a {slot} en Dota": "pressed {key} but Dota did not select {slot}",
+    "click retrato {slot} → {cam}": "click on portrait {slot} → {cam}",
+    "tecla {slot}": "key {slot}",
+    "tecla {key} → {cam}": "key {key} → {cam}",
+    "click en la barra superior (x={x}): esperando a GSI para aprenderlo":
+        "click on the top bar (x={x}): waiting for GSI to learn it",
+
+    # ---- gsi_server / local_input ----
+    "El puerto {port} está en uso por otra copia de la app, la consola u otro programa ({error})":
+        "Port {port} is in use by another copy of the app, the console or another program ({error})",
+    "entrada local: {error}": "local input: {error}",
+
+    # ---- obs_link ----
+    "Se perdió la conexión con OBS ({error})": "Lost connection to OBS ({error})",
+    "La escena '{scene}' no existe en OBS": "The '{scene}' scene doesn't exist in OBS",
+    "Fuentes de OBS cargadas": "OBS sources loaded",
+    "{cam} no está en la escena de OBS: se apaga la cámara anterior":
+        "{cam} isn't in the OBS scene: turning off the previous camera",
+    "ninguna": "none",
+    "Reconectado a OBS en {host}:{port}": "Reconnected to OBS at {host}:{port}",
+    "reconexión": "reconnect",
+    "OBS rechazó cambiar la imagen de {name} ({error})": "OBS refused to change the image of {name} ({error})",
+    "OBS rechazó crear {name} ({error})": "OBS refused to create {name} ({error})",
+    "Creado {name} en la escena '{scene}'": "Created {name} in the '{scene}' scene",
+
+    # ---- ventana: Revisión ----
+    "Imágenes": "Images",
+    "Todos los archivos": "All files",
+    "Revisando…": "Checking…",
+    "Revisar todo de nuevo": "Re-check everything",
+    "Revisiones": "Checks",
+    "Falló la revisión: {error}": "The checks failed: {error}",
+    "Ver instrucciones": "Show instructions",
+    "Buscar… {name}": "Browse… {name}",
+    "¿Quieres que haga este cambio ahora?": "Make this change now?",
+    "Confirmar cambio": "Confirm change",
+    "No se pudo arreglar": "Couldn't fix",
+    "Error al arreglar": "Error while fixing",
+    "Arreglado: {title}": "Fixed: {title}",
+    "Listo": "Done",
+    "Elige la carpeta de Dota 2 («dota 2 beta»)": "Choose the Dota 2 folder (\"dota 2 beta\")",
+    "Carpeta equivocada": "Wrong folder",
+    "Imagen para «{name}»": "Image for \"{name}\"",
+    "No se pudo cambiar la imagen": "Couldn't change the image",
+    "No pude cambiar la imagen de «{name}». ¿OBS está abierto y conectado?":
+        "Couldn't change the image of \"{name}\". Is OBS open and connected?",
+    "Esa carpeta no parece ser Dota 2 (falta game\\dota). Elige la carpeta "
+    "«dota 2 beta», la que contiene la carpeta «game».":
+        "That folder doesn't look like Dota 2 (game\\dota is missing). Choose the \"dota 2 beta\" "
+        "folder, the one that contains the \"game\" folder.",
+
+    # ---- ventana principal ----
+    "Para cambiar al instante, la app detecta las teclas y clicks mientras "
+    "Dota está activo.":
+        "To switch instantly, the app detects keys and clicks while Dota is the active window.",
+    "Con «Ocultar todo» la app no escucha el teclado ni el mouse.":
+        "With \"Hide all\" the app doesn't listen to the keyboard or mouse.",
+    "Falta la contraseña de OBS. Ábrela en OBS (Herramientas → Ajustes del "
+    "servidor WebSocket → Mostrar información de conexión), cópiala y pégala aquí.":
+        "The OBS password is missing. Find it in OBS (Tools → WebSocket Server Settings → "
+        "Show Connect Info), copy it and paste it here.",
+    "Estado": "Status",
+    "Ajustes": "Settings",
+    "Revisión": "Checks",
+    "En vivo": "Live",
+    "Bando del Equipo 1": "Team 1 side",
+    "Cámbialo si la moneda invirtió los lados. Se recuerda al reabrir.":
+        "Change it if the coin toss swapped the sides. It's remembered after reopening.",
+    "Modo": "Mode",
+    "Automático": "Automatic",
+    "Ocultar todo": "Hide all",
+    "Últimos eventos": "Recent events",
+    "motor: {error}": "engine: {error}",
+    "teclas de Dota: {error}": "Dota hotkeys: {error}",
+    "conectado": "connected",
+    "falta la contraseña (⚙ Ajustes)": "password missing (⚙ Settings)",
+    "contraseña incorrecta": "wrong password",
+    "conectando…": "connecting…",
+    "reconectando": "reconnecting",
+    "datos llegando": "data arriving",
+    "sin datos": "no data",
+    "Partida": "Match",
+    "en juego": "in game",
+    "fuera de partida": "not in a match",
+    "Al aire: <b>{camera}</b>": "On air: <b>{camera}</b>",
+    "Al aire: <b>nada</b> (Ocultar todo)": "On air: <b>nothing</b> (Hide all)",
+    "Al aire: <b>ninguna cámara</b>": "On air: <b>no camera</b>",
+    "Equipo 1 ({side})": "Team 1 ({side})",
+    "Equipo 2 ({side})": "Team 2 ({side})",
+    "Teclas de Dota recargadas": "Dota hotkeys reloaded",
+    "no pude guardar el estado: {error}": "couldn't save the state: {error}",
+    "Bando del Equipo 1: {side}": "Team 1 side: {side}",
+    "teclado y mouse: {error}": "keyboard and mouse: {error}",
+    "Modo: Automático": "Mode: Automatic",
+    "Modo: Ocultar todo (sin escuchar teclado ni mouse)": "Mode: Hide all (not listening to keyboard or mouse)",
+    "No se pudo guardar": "Couldn't save",
+    "No pude guardar los ajustes: {error}": "Couldn't save the settings: {error}",
+    "Retratos olvidados: vuelven a la posición inicial": "Portraits forgotten: back to the default positions",
+    "Ajustes de OBS cambiados: conectando a {host}:{port}": "OBS settings changed: connecting to {host}:{port}",
+    "El idioma nuevo se aplica al reiniciar la app.": "The new language applies after restarting the app.",
+    "Reiniciar ahora": "Restart now",
+    "Más tarde": "Later",
+    "No pude volver a abrir la app: {error}": "Couldn't reopen the app: {error}",
+
+    # ---- Ajustes ----
+    "Ajustes · {app}": "Settings · {app}",
+    "Pega aquí la contraseña de OBS": "Paste the OBS password here",
+    "Mostrar": "Show",
+    "Ocultar": "Hide",
+    "Contraseña de OBS WebSocket": "OBS WebSocket password",
+    "Se guarda solo en esta PC. En OBS: Herramientas → Ajustes del servidor "
+    "WebSocket → Mostrar información de conexión.":
+        "Stored only on this PC. In OBS: Tools → WebSocket Server Settings → Show Connect Info.",
+    "Puerto de OBS": "OBS port",
+    "Por defecto {port}": "Default: {port}",
+    "Carpeta de Dota": "Dota folder",
+    "Elegida a mano": "Chosen manually",
+    "Encontrada automáticamente": "Found automatically",
+    "(no encontrada)": "(not found)",
+    "Pulsa «Buscar…» y elige la carpeta «dota 2 beta»": "Click \"Browse…\" and choose the \"dota 2 beta\" folder",
+    "Bando inicial del Equipo 1": "Team 1 starting side",
+    "Valor por defecto si no hay uno guardado": "Default when none is saved",
+    "Idioma / Language": "Language / Idioma",
+    "Se aplica al reiniciar la app": "Applies after restarting the app",
+    "Olvidar": "Forget",
+    "Retratos aprendidos": "Learned portraits",
+    "{n} afinados con tus clicks. «Olvidar» vuelve a la posición inicial.":
+        "{n} refined by your clicks. \"Forget\" resets them to the default positions.",
+    "Olvidar retratos": "Forget portraits",
+    "Se borra lo que la app aprendió de tus clicks en los retratos y vuelve a la "
+    "posición inicial (los 10 siguen ubicados). ¿Continuar?":
+        "This erases what the app learned from your clicks on the portraits and goes back to the "
+        "default positions (all 10 stay located). Continue?",
+    "Guardar": "Save",
+    "Cancelar": "Cancel",
+
+    # ---- consola ----
+    "Teclas de Dota: {keys}": "Dota hotkeys: {keys}",
+    "Sin tecla en Dota: {slots}  (asígnalas en Dota > Teclas > Espectador)":
+        "No key in Dota for: {slots}  (assign them in Dota: Settings → Hotkeys → Spectator)",
+    "Radiant = Equipo {radiant}   |   Dire = Equipo {dire}": "Radiant = Team {radiant}   |   Dire = Team {dire}",
+    "Modo: Ocultar todo — escribe 'auto' para reanudar": "Mode: Hide all — type 'auto' to resume",
+    "Modo: Automático — siguiendo el héroe seleccionado": "Mode: Automatic — following the selected hero",
+    "{name} no está en la escena": "{name} isn't in the scene",
+    "Roster ({n}/10)  [Radiant = Equipo {team}]:": "Roster ({n}/10)  [Radiant = Team {team}]:",
+    "Contraseña de OBS: ": "OBS password: ",
+    "No pude cargar las fuentes ({error}): se reintenta solo.":
+        "Couldn't load the sources ({error}): retrying automatically.",
+    "No pude conectar ({error}): se reintenta solo cada {seconds} s.":
+        "Couldn't connect ({error}): retrying automatically every {seconds} s.",
+    "Retratos: {n}/10 afinados con tus clicks": "Portraits: {n}/10 refined by your clicks",
+    "No pude escuchar teclado y mouse ({error}): solo GSI, con ~1 s de retraso.":
+        "Couldn't listen to keyboard and mouse ({error}): GSI only, with ~1 s delay.",
+    "olvidar": "forget",
+    "Comandos:": "Commands:",
+    "Equipo 1 cambia de bando (úsalo si la moneda invirtió los lados)":
+        "Team 1 switches sides (use it if the coin toss swapped the sides)",
+    "ocultar todo   (bloqueado hasta 'auto')": "hide all   (locked until 'auto')",
+    "seguir héroe seleccionado": "follow the selected hero",
+    "modo, bando y cámara actual": "mode, side and current camera",
+    "borrar los retratos aprendidos (se vuelven a aprender solos)":
+        "erase the learned portraits (they're relearned automatically)",
+    "Bloqueado. Escribe 'auto' para reanudar.": "Locked. Type 'auto' to resume.",
+    "Siguiendo héroe seleccionado.": "Following the selected hero.",
+    "Modo:    {mode}": "Mode:    {mode}",
+    "Radiant: Equipo {radiant}   (Dire = Equipo {dire})": "Radiant: Team {radiant}   (Dire = Team {dire})",
+    "OBS:     {state}": "OBS:     {state}",
+    "sin conexión": "disconnected",
+    "Cámara:  {camera}": "Camera:  {camera}",
+    "Héroe:   {hero}": "Hero:    {hero}",
+    "ninguno": "none",
+    "Retratos: {n}/10 aprendidos": "Portraits: {n}/10 learned",
+    "Retratos olvidados. Se vuelven a aprender al hacerles click.":
+        "Portraits forgotten. They're relearned when you click them.",
+}

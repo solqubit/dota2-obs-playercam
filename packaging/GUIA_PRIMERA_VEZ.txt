@@ -1,0 +1,69 @@
+OverPower · Cámaras Dota  -  Guía de primera vez
+==================================================
+
+Qué hace: cuando miras a un jugador en Dota 2, la app enciende su cámara en
+OBS (y apaga la anterior). Funciona sola; tú solo la dejas abierta.
+
+Necesitas: Windows 10/11, Dota 2 y OBS Studio instalados, y una escena de
+OBS: la que te envió quien organiza el evento, o la de ejemplo que viene en
+este .zip ("example-scene.json").
+
+
+1) INSTALAR
+   - Descomprime el .zip COMPLETO (clic derecho -> Extraer todo). No abras el
+     programa desde dentro del zip y no saques el .exe de su carpeta: necesita
+     los archivos que van a su lado.
+   - Abre "DotaPlayerCams.exe" dentro de la carpeta DotaPlayerCams.
+   - Idioma: la app arranca en el idioma de tu Windows (español o inglés).
+     Cámbialo en Ajustes -> Idioma; se queda fijo.
+
+2) SI WINDOWS MUESTRA "WINDOWS PROTEGIÓ SU PC" (SmartScreen)
+   La app no tiene firma digital de pago, por eso Windows no reconoce al
+   editor. No significa que sea peligrosa.
+   - Pulsa "Más información" y luego "Ejecutar de todas formas".
+   Solo aparece la primera vez.
+
+3) SI EL ANTIVIRUS LA BLOQUEA O LA BORRA
+   La app escucha teclas y clics mientras Dota está activo (así cambia de
+   cámara al instante) y algunos antivirus lo confunden con un espía.
+   - Abre tu antivirus (en Windows: Seguridad de Windows -> Protección
+     antivirus y contra amenazas -> Administrar configuración -> Exclusiones
+     -> Agregar o quitar exclusiones -> Agregar una exclusión -> Carpeta).
+   - Elige la carpeta DotaPlayerCams completa y vuelve a abrir la app.
+   - Si lo borró, restaura el archivo desde el historial de protección del
+     antivirus y luego agrega la exclusión.
+
+4) IMPORTAR LA ESCENA EN OBS
+   - Abre OBS -> menú "Colección de escenas" -> "Importar".
+   - Agrega el archivo .json de la escena y confirma.
+   - Luego "Colección de escenas" -> elige la colección importada
+     (la de ejemplo se llama "Dota Player Cams (example)").
+   - Con la de ejemplo: en cada grupo CAM_EQ1_1 ... CAM_EQ2_5, abre la fuente
+     VDO_... y cambia la URL por el enlace de VDO.Ninja de ese jugador.
+
+5) ACTIVAR EL WEBSOCKET DE OBS Y ESCRIBIR LA CONTRASEÑA
+   - En OBS: Herramientas -> "Ajustes del servidor WebSocket" -> marca
+     "Habilitar servidor WebSocket". Copia la contraseña (o crea una).
+   - En la app: botón "Ajustes" (arriba) -> pega la contraseña en
+     "Contraseña de OBS WebSocket" -> "Guardar".
+   La contraseña se queda guardada solo en tu PC.
+
+6) SEGUIR LAS REVISIONES DE LA PANTALLA
+   Al abrir, la app revisa OBS, Dota, la escena y las teclas. A la izquierda
+   verás cada punto en verde (bien), amarillo (aviso) o rojo (falta algo), con
+   instrucciones para arreglarlo. La app nunca cambia nada sin preguntarte, y
+   las teclas de Dota solo se arreglan con Dota cerrado.
+   Pulsa "Revisar todo de nuevo" después de cada arreglo hasta que todo esté
+   en verde.
+   Imágenes del Borde y el Marco: ponlas como Borde.png y Marco.png en la
+   carpeta OverPowerCamaras\_internal\assets y pulsa "Arreglar".
+
+7) EN LA PARTIDA (panel "En vivo", a la derecha)
+   - "Bando del Equipo 1": elige Radiant o Dire según el sorteo.
+   - "Modo": Automático = la cámara sigue al jugador que miras.
+     "Ocultar todo" = ninguna cámara al aire (la app deja de escuchar
+     teclado y mouse).
+   Deja la ventana abierta mientras transmites.
+
+¿Algo no funciona? Mira primero qué punto está en rojo o amarillo en la
+pantalla de Revisión; casi siempre dice qué hacer.

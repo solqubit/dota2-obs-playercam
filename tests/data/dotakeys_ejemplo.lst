@@ -1,0 +1,1138 @@
+"KeyBindings"
+{
+	"Name"		"ARROW"
+	"Version"		"12"
+	"AlgorithmicUpdateVersion"		"8"
+	"UseHeroBindings"		"0"
+	"LinkPlayerToSpectator"		"1"
+	"Keys"
+	{
+		"CameraUp"
+		{
+			"Key"		"UPARROW"
+			"Mode"		"0"
+		}
+		"CameraDown"
+		{
+			"Key"		"DOWNARROW"
+		}
+		"CameraLeft"
+		{
+			"Key"		"LEFTARROW"
+		}
+		"CameraRight"
+		{
+			"Key"		"RIGHTARROW"
+		}
+		"CameraZoomIn"
+		{
+			"Key"		"MWHEELUP"
+			"Mode"		"0"
+		}
+		"CameraZoomOut"
+		{
+			"Key"		"MWHEELDOWN"
+			"Mode"		"0"
+		}
+		"ScoreboardToggle"
+		{
+			"Key"		"Q"
+			"Modifier"		"ALT"
+			"Mode"		"0"
+		}
+		"ActivateGlyph"
+		{
+			"Key"		"J"
+		}
+		"ChatTeam"
+		{
+			"Key"		"ENTER"
+		}
+		"ChatTeam2"
+		{
+			"Key"		"KP_ENTER"
+		}
+		"ChatVoiceTeam"
+		{
+			"Mode"		"0"
+		}
+		"ChatWheel"
+		{
+			"Key"		"Y"
+		}
+		"HeroChatWheel"
+		{
+			"Mode"		"0"
+		}
+		"HeroAttack"
+		{
+			"Key"		"A"
+		}
+		"HeroMove"
+		{
+			"Key"		"M"
+		}
+		"HeroHold"
+		{
+			"Key"		"H"
+			"Mode"		"0"
+		}
+		"HeroSelect"
+		{
+			"Key"		"F1"
+			"Mode"		"0"
+		}
+		"CourierSelect"
+		{
+			"Key"		"F4"
+			"Mode"		"0"
+		}
+		"ScoutSelect"
+		{
+			"Key"		"F7"
+		}
+		"CourierDeliver"
+		{
+			"Key"		"2"
+			"Mode"		"0"
+		}
+		"ControlGroup8"
+		{
+			"Key"		"8"
+		}
+		"ControlGroup9"
+		{
+			"Key"		"9"
+		}
+		"ControlGroup10"
+		{
+			"Key"		"0"
+		}
+		"ControlGroupCycle"
+		{
+			"Key"		"TAB"
+		}
+		"AbilityPrimary1"
+		{
+			"Key"		"Q"
+			"Mode"		"0"
+		}
+		"AbilityPrimary2"
+		{
+			"Key"		"W"
+			"Mode"		"0"
+		}
+		"AbilityPrimary3"
+		{
+			"Key"		"E"
+		}
+		"AbilitySecondary1"
+		{
+			"Key"		"D"
+		}
+		"AbilitySecondary2"
+		{
+			"Key"		"F"
+		}
+		"AbilityUltimate"
+		{
+			"Key"		"R"
+		}
+		"LearnAbilities"
+		{
+			"Key"		"O"
+		}
+		"Inventory1"
+		{
+			"Key"		"Z"
+			"Mode"		"0"
+		}
+		"Inventory2"
+		{
+			"Key"		"X"
+			"Mode"		"0"
+		}
+		"Inventory3"
+		{
+			"Key"		"C"
+			"Mode"		"0"
+		}
+		"Inventory4"
+		{
+			"Key"		"V"
+			"Mode"		"0"
+		}
+		"Inventory5"
+		{
+			"Key"		"B"
+			"Mode"		"0"
+		}
+		"Inventory6"
+		{
+			"Key"		"N"
+			"Mode"		"0"
+		}
+		"InventoryTP"
+		{
+			"Key"		"T"
+			"Mode"		"0"
+		}
+		"PurchaseQuickbuy"
+		{
+			"Key"		"SPACE"
+			"Mode"		"0"
+		}
+		"PurchaseSticky"
+		{
+			"Key"		"F8"
+		}
+		"Pause"
+		{
+			"Key"		"P"
+			"Mode"		"0"
+		}
+		"ScreenshotSettings"
+		{
+			"Key"		"F6"
+		}
+		"Escape"
+		{
+			"Key"		"ESCAPE"
+		}
+		"SpectatorCameraUp"
+		{
+			"Key"		"UPARROW"
+			"Modifier"		"None"
+			"Mode"		"0"
+		}
+		"SpectatorCameraDown"
+		{
+			"Key"		"DOWNARROW"
+			"Modifier"		"None"
+			"Mode"		"0"
+		}
+		"SpectatorCameraLeft"
+		{
+			"Key"		"LEFTARROW"
+			"Modifier"		"None"
+			"Mode"		"0"
+		}
+		"SpectatorCameraRight"
+		{
+			"Key"		"RIGHTARROW"
+			"Modifier"		"None"
+			"Mode"		"0"
+		}
+		"SpectatorIncreaseReplaySpeed"
+		{
+			"Key"		"="
+		}
+		"SpectatorDecreaseReplaySpeed"
+		{
+			"Key"		"-"
+		}
+		"SpectatorChat"
+		{
+			"Key"		"ENTER"
+			"Modifier"		"SHIFT"
+			"Mode"		"0"
+		}
+		"SpectatorCoach_ViewToggle"
+		{
+			"Key"		"SPACE"
+		}
+		"SpectatorScoreboard"
+		{
+			"Key"		"q"
+			"Modifier"		"ALT"
+			"Mode"		"0"
+		}
+		"SpectatorStatsItem"
+		{
+			"Key"		"F5"
+		}
+		"SpectatorStatsGold"
+		{
+			"Key"		"F6"
+		}
+		"SpectatorStatsXP"
+		{
+			"Key"		"F7"
+		}
+		"SpectatorStatsWinChance"
+		{
+			"Key"		"F8"
+		}
+		"SpectatorFOWRadient"
+		{
+			"Key"		"F2"
+		}
+		"SpectatorFOWDire"
+		{
+			"Key"		"F3"
+		}
+		"SpectatorBroadcasterMenu"
+		{
+			"Key"		"F10"
+		}
+		"SpectatorDropdown_KDA"
+		{
+			"Key"		"q"
+		}
+		"SpectatorDropdown_Level"
+		{
+			"Key"		"e"
+		}
+		"SpectatorDropdown_HeroFacet"
+		{
+			"Key"		"f"
+		}
+		"SpectatorDropdown_XP_Per_Min"
+		{
+			"Key"		"r"
+		}
+		"SpectatorDropdown_Gold"
+		{
+			"Key"		"t"
+		}
+		"SpectatorDropdown_NetWorth"
+		{
+			"Key"		"y"
+		}
+		"SpectatorDropdown_Fantasy"
+		{
+			"Key"		"o"
+		}
+		"SpectatorDropdown_Gold_Per_Min"
+		{
+			"Key"		"u"
+			"PanelParent"		"page2"
+		}
+		"SpectatorDropdown_Buyback"
+		{
+			"Key"		"i"
+		}
+		"SpectatorDropdown_Sort"
+		{
+			"Key"		"s"
+		}
+		"SpectatorDropdown_Close"
+		{
+			"Key"		"a"
+		}
+		"SpectatorCameraFocusPlayer2"
+		{
+			"Key"		"2"
+		}
+		"SpectatorCameraFocusPlayer3"
+		{
+			"Key"		"3"
+		}
+		"SpectatorCameraFocusPlayer4"
+		{
+			"Key"		"4"
+		}
+		"SpectatorCameraFocusPlayer5"
+		{
+			"Key"		"5"
+		}
+		"SpectatorCameraFocusPlayer6"
+		{
+			"Key"		"6"
+		}
+		"SpectatorCameraFocusPlayer7"
+		{
+			"Key"		"7"
+		}
+		"SpectatorCameraFocusPlayer8"
+		{
+			"Key"		"8"
+		}
+		"SpectatorCameraFocusPlayer9"
+		{
+			"Key"		"9"
+		}
+		"SpectatorCameraFocusPlayer10"
+		{
+			"Key"		"0"
+		}
+		"ShopTabConsumables"
+		{
+			"Key"		"q"
+			"Mode"		"-1"
+		}
+		"ShopTabAttributes"
+		{
+			"Key"		"w"
+			"Mode"		"-1"
+		}
+		"ShopTabArmaments"
+		{
+			"Key"		"e"
+			"Mode"		"-1"
+		}
+		"ShopTabArcane"
+		{
+			"Key"		"r"
+			"Mode"		"-1"
+		}
+		"ShopTabBasics"
+		{
+			"Key"		"a"
+			"Mode"		"-1"
+		}
+		"ShopTabSupport"
+		{
+			"Key"		"s"
+			"Mode"		"-1"
+		}
+		"ShopTabCaster"
+		{
+			"Key"		"d"
+			"Mode"		"-1"
+		}
+		"ShopTabWeapons"
+		{
+			"Key"		"g"
+			"Mode"		"-1"
+		}
+		"ShopTabArmor"
+		{
+			"Key"		"f"
+			"Mode"		"-1"
+		}
+		"ShopTabArtifacts"
+		{
+			"Key"		"h"
+			"Mode"		"-1"
+		}
+		"ShopTabSidePage1"
+		{
+			"Key"		"z"
+			"Mode"		"-1"
+		}
+		"ShopTabSidePage2"
+		{
+			"Key"		"x"
+			"Mode"		"-1"
+		}
+		"ShopTabSecret"
+		{
+			"Key"		"c"
+			"Mode"		"-1"
+		}
+		"ShopTabSearchBox"
+		{
+			"Key"		"v"
+			"Mode"		"-1"
+		}
+		"ShopSlot1"
+		{
+			"Key"		"1"
+			"Mode"		"-1"
+		}
+		"ShopSlot2"
+		{
+			"Key"		"2"
+			"Mode"		"-1"
+		}
+		"ShopSlot3"
+		{
+			"Key"		"3"
+			"Mode"		"-1"
+		}
+		"ShopSlot4"
+		{
+			"Key"		"4"
+			"Mode"		"-1"
+		}
+		"ShopSlot5"
+		{
+			"Key"		"5"
+			"Mode"		"-1"
+		}
+		"ShopSlot6"
+		{
+			"Key"		"6"
+			"Mode"		"-1"
+		}
+		"ShopSlot7"
+		{
+			"Key"		"7"
+			"Mode"		"-1"
+		}
+		"ShopSlot8"
+		{
+			"Key"		"8"
+			"Mode"		"-1"
+		}
+		"ShopSlot9"
+		{
+			"Key"		"9"
+			"Mode"		"-1"
+		}
+		"ShopSlot10"
+		{
+			"Key"		"0"
+			"Mode"		"-1"
+		}
+		"ShopSlot11"
+		{
+			"Key"		"-"
+			"Mode"		"-1"
+		}
+		"ShopSlot12"
+		{
+			"Key"		"="
+			"Mode"		"-1"
+		}
+		"ShopSlot13"
+		{
+			"Key"		"["
+			"Mode"		"-1"
+		}
+		"ShopSlot14"
+		{
+			"Key"		"]"
+			"Mode"		"-1"
+		}
+		"InspectHeroInWorld"
+		{
+			"Key"		"I"
+		}
+		"TalentUpgradeStatLeft"
+		{
+			"Key"		"1"
+		}
+		"TalentUpgradeStatRight"
+		{
+			"Key"		"2"
+		}
+		"TalentUpgradeAttribute"
+		{
+			"Key"		"3"
+		}
+		"NeutralItemSelect1"
+		{
+		}
+		"NeutralItemSelect2"
+		{
+			"Key"		"2"
+		}
+		"NeutralItemSelect3"
+		{
+			"Key"		"3"
+		}
+		"NeutralItemSelect4"
+		{
+			"Key"		"4"
+		}
+		"ChatGlobal"
+		{
+			"Key"		"ENTER"
+			"Modifier"		"SHIFT"
+			"Mode"		"-1"
+		}
+		"ChatGlobal2"
+		{
+			"Key"		"KP_ENTER"
+			"Modifier"		"SHIFT"
+			"Mode"		"-1"
+		}
+		"AbilityPrimary1AutoCast"
+		{
+			"Key"		"q"
+			"Modifier"		"ALT"
+			"Mode"		"-1"
+		}
+		"AbilityPrimary2AutoCast"
+		{
+			"Key"		"w"
+			"Modifier"		"ALT"
+			"Mode"		"-1"
+		}
+		"AbilityPrimary3AutoCast"
+		{
+			"Key"		"e"
+			"Modifier"		"ALT"
+			"Mode"		"-1"
+		}
+		"AbilitySecondary1AutoCast"
+		{
+			"Key"		"d"
+			"Modifier"		"ALT"
+			"Mode"		"-1"
+		}
+		"AbilitySecondary2AutoCast"
+		{
+			"Key"		"f"
+			"Modifier"		"ALT"
+			"Mode"		"-1"
+		}
+		"AbilityUltimateAutoCast"
+		{
+			"Key"		"r"
+			"Modifier"		"ALT"
+			"Mode"		"-1"
+		}
+		"Inventory1AutoCast"
+		{
+			"Key"		"z"
+			"Modifier"		"ALT"
+			"Mode"		"-1"
+		}
+		"Inventory2AutoCast"
+		{
+			"Key"		"x"
+			"Modifier"		"ALT"
+			"Mode"		"-1"
+		}
+		"Inventory3AutoCast"
+		{
+			"Key"		"c"
+			"Modifier"		"ALT"
+			"Mode"		"-1"
+		}
+		"Inventory4AutoCast"
+		{
+			"Key"		"v"
+			"Modifier"		"ALT"
+			"Mode"		"-1"
+		}
+		"Inventory5AutoCast"
+		{
+			"Key"		"b"
+			"Modifier"		"ALT"
+			"Mode"		"-1"
+		}
+		"Inventory6AutoCast"
+		{
+			"Key"		"n"
+			"Modifier"		"ALT"
+			"Mode"		"-1"
+		}
+		"InventoryTPAutoCast"
+		{
+			"Key"		"t"
+			"Modifier"		"ALT"
+			"Mode"		"-1"
+		}
+		"SpectatorCameraGrip"
+		{
+			"Key"		"MOUSE3"
+			"Modifier"		"None"
+			"Mode"		"-1"
+		}
+		"SpectatorHeroSelect"
+		{
+			"Key"		"1"
+			"Modifier"		"None"
+			"Mode"		"-1"
+		}
+		"SpectatorPause"
+		{
+			"Key"		"p"
+			"Modifier"		"None"
+			"Mode"		"-1"
+		}
+		"InventoryNeutral"
+		{
+			"Key"		"4"
+			"Mode"		"-1"
+		}
+		"InventoryNeutralAutoCast"
+		{
+			"Key"		"4"
+			"Modifier"		"ALT"
+			"Mode"		"-1"
+		}
+		"SelectAll"
+		{
+			"Key"		"MOUSE4"
+			"Mode"		"-1"
+		}
+		"CourierBurst"
+		{
+			"Key"		"6"
+			"Mode"		"-1"
+		}
+		"CourierShield"
+		{
+			"Key"		"7"
+			"Mode"		"-1"
+		}
+		"ChatWheel2"
+		{
+			"Key"		"U"
+			"Mode"		"-1"
+		}
+		"Console"
+		{
+			"Key"		"\"
+			"Mode"		"-1"
+		}
+		"HeroStop"
+		{
+			"Key"		"S"
+			"Mode"		"-1"
+		}
+		"ControlGroup3"
+		{
+			"Key"		"3"
+			"Mode"		"-1"
+		}
+		"ControlGroup5"
+		{
+			"Key"		"5"
+			"Mode"		"-1"
+		}
+		"SpectatorFOWBoth"
+		{
+			"Key"		"F1"
+			"Mode"		"-1"
+		}
+		"ChatVoiceParty"
+		{
+			"Key"		"MOUSE5"
+			"Mode"		"-1"
+		}
+		"SpectatorDropdown_Lasthits_Denies"
+		{
+			"Key"		"w"
+			"Mode"		"-1"
+		}
+		"CameraGrip"
+		{
+			"Key"		"MOUSE3"
+			"Mode"		"-1"
+		}
+	}
+	"PerUnitKeybinds"		"1"
+	"Items"
+	{
+		"item_blink"
+		{
+			"Mode"		"1"
+		}
+		"item_overwhelming_blink"
+		{
+			"Mode"		"1"
+		}
+		"item_swift_blink"
+		{
+			"Mode"		"1"
+		}
+		"item_arcane_blink"
+		{
+			"Mode"		"1"
+		}
+		"item_quelling_blade"
+		{
+			"Mode"		"1"
+		}
+		"item_faerie_fire"
+		{
+			"Mode"		"1"
+		}
+		"item_moon_shard"
+		{
+			"Mode"		"1"
+		}
+		"item_branches"
+		{
+			"Mode"		"1"
+		}
+		"item_gem"
+		{
+			"Mode"		"1"
+		}
+		"item_magic_stick"
+		{
+			"Mode"		"1"
+		}
+		"item_magic_wand"
+		{
+			"Mode"		"1"
+		}
+		"item_ghost"
+		{
+			"Mode"		"1"
+		}
+		"item_clarity"
+		{
+			"Mode"		"1"
+		}
+		"item_enchanted_mango"
+		{
+			"Mode"		"1"
+		}
+		"item_blood_grenade"
+		{
+			"Mode"		"1"
+		}
+		"item_flask"
+		{
+			"Mode"		"1"
+		}
+		"item_dust"
+		{
+			"Mode"		"1"
+		}
+		"item_bottle"
+		{
+			"Mode"		"1"
+		}
+		"item_ward_dispenser"
+		{
+			"Mode"		"1"
+		}
+		"item_ward_observer"
+		{
+			"Mode"		"1"
+		}
+		"item_ward_sentry"
+		{
+			"Mode"		"1"
+		}
+		"item_tango"
+		{
+			"Mode"		"1"
+		}
+		"item_tpscroll"
+		{
+			"Mode"		"1"
+		}
+		"item_phase_boots"
+		{
+			"Mode"		"1"
+		}
+		"item_power_treads"
+		{
+			"Mode"		"1"
+		}
+		"item_hand_of_midas"
+		{
+			"Mode"		"1"
+		}
+		"item_mekansm"
+		{
+			"Mode"		"1"
+		}
+		"item_holy_locket"
+		{
+			"Mode"		"1"
+		}
+		"item_pipe"
+		{
+			"Mode"		"1"
+		}
+		"item_urn_of_shadows"
+		{
+			"Mode"		"1"
+		}
+		"item_sheepstick"
+		{
+			"Mode"		"1"
+		}
+		"item_orchid"
+		{
+			"Mode"		"1"
+		}
+		"item_bloodthorn"
+		{
+			"Mode"		"1"
+		}
+		"item_cyclone"
+		{
+			"Mode"		"1"
+		}
+		"item_wind_waker"
+		{
+			"Mode"		"1"
+		}
+		"item_force_staff"
+		{
+			"Mode"		"1"
+		}
+		"item_hurricane_pike"
+		{
+			"Mode"		"1"
+		}
+		"item_dagon"
+		{
+			"Mode"		"1"
+		}
+		"item_dagon_2"
+		{
+			"Mode"		"1"
+		}
+		"item_dagon_3"
+		{
+			"Mode"		"1"
+		}
+		"item_dagon_4"
+		{
+			"Mode"		"1"
+		}
+		"item_dagon_5"
+		{
+			"Mode"		"1"
+		}
+		"item_refresher"
+		{
+			"Mode"		"1"
+		}
+		"item_black_king_bar"
+		{
+			"Mode"		"1"
+		}
+		"item_shivas_guard"
+		{
+			"Mode"		"1"
+		}
+		"item_bloodstone"
+		{
+			"Mode"		"1"
+		}
+		"item_sphere"
+		{
+			"Mode"		"1"
+		}
+		"item_lotus_orb"
+		{
+			"Mode"		"1"
+		}
+		"item_meteor_hammer"
+		{
+			"Mode"		"1"
+		}
+		"item_nullifier"
+		{
+			"Mode"		"1"
+		}
+		"item_spirit_vessel"
+		{
+			"Mode"		"1"
+		}
+		"item_crimson_guard"
+		{
+			"Mode"		"1"
+		}
+		"item_blade_mail"
+		{
+			"Mode"		"1"
+		}
+		"item_bfury"
+		{
+			"Mode"		"1"
+		}
+		"item_manta"
+		{
+			"Mode"		"1"
+		}
+		"item_invis_sword"
+		{
+			"Mode"		"1"
+		}
+		"item_silver_edge"
+		{
+			"Mode"		"1"
+		}
+		"item_satanic"
+		{
+			"Mode"		"1"
+		}
+		"item_mjollnir"
+		{
+			"Mode"		"1"
+		}
+		"item_helm_of_the_dominator"
+		{
+			"Mode"		"1"
+		}
+		"item_helm_of_the_overlord"
+		{
+			"Mode"		"1"
+		}
+		"item_gungir"
+		{
+			"Mode"		"1"
+		}
+		"item_mask_of_madness"
+		{
+			"Mode"		"1"
+		}
+		"item_diffusal_blade"
+		{
+			"Mode"		"1"
+		}
+		"item_disperser"
+		{
+			"Mode"		"1"
+		}
+		"item_ethereal_blade"
+		{
+			"Mode"		"1"
+		}
+		"item_soul_ring"
+		{
+			"Mode"		"1"
+		}
+		"item_arcane_boots"
+		{
+			"Mode"		"1"
+		}
+		"item_ancient_janggo"
+		{
+			"Mode"		"1"
+		}
+		"item_boots_of_bearing"
+		{
+			"Mode"		"1"
+		}
+		"item_solar_crest"
+		{
+			"Mode"		"1"
+		}
+		"item_pavise"
+		{
+			"Mode"		"1"
+		}
+		"item_smoke_of_deceit"
+		{
+			"Mode"		"1"
+		}
+		"item_veil_of_discord"
+		{
+			"Mode"		"1"
+		}
+		"item_guardian_greaves"
+		{
+			"Mode"		"1"
+		}
+		"item_rod_of_atos"
+		{
+			"Mode"		"1"
+		}
+		"item_abyssal_blade"
+		{
+			"Mode"		"1"
+		}
+		"item_heavens_halberd"
+		{
+			"Mode"		"1"
+		}
+		"item_shadow_amulet"
+		{
+			"Mode"		"1"
+		}
+		"item_glimmer_cape"
+		{
+			"Mode"		"1"
+		}
+		"item_spider_legs"
+		{
+			"Mode"		"1"
+		}
+		"item_essence_ring"
+		{
+			"Mode"		"1"
+		}
+		"item_demonicon"
+		{
+			"Mode"		"1"
+		}
+		"item_fallen_sky"
+		{
+			"Mode"		"1"
+		}
+		"item_minotaur_horn"
+		{
+			"Mode"		"1"
+		}
+		"item_psychic_headband"
+		{
+			"Mode"		"1"
+		}
+		"item_pogo_stick"
+		{
+			"Mode"		"1"
+		}
+		"item_harpoon"
+		{
+			"Mode"		"1"
+		}
+		"item_roshans_banner"
+		{
+			"Mode"		"1"
+		}
+		"item_mana_draught"
+		{
+			"Mode"		"1"
+		}
+		"item_crippling_crossbow"
+		{
+			"Mode"		"1"
+		}
+		"item_polliwog_charm"
+		{
+			"Mode"		"1"
+		}
+		"item_kobold_cup"
+		{
+			"Mode"		"1"
+		}
+		"item_jidi_pollen_bag"
+		{
+			"Mode"		"1"
+		}
+		"item_ash_legion_shield"
+		{
+			"Mode"		"1"
+		}
+		"item_riftshadow_prism"
+		{
+			"Mode"		"1"
+		}
+		"item_metamorphic_mandible"
+		{
+			"Mode"		"1"
+		}
+		"item_idol_of_screeauk"
+		{
+			"Mode"		"1"
+		}
+		"item_flayers_bota"
+		{
+			"Mode"		"1"
+		}
+		"item_essence_distiller"
+		{
+			"Mode"		"1"
+		}
+		"item_crellas_crozier"
+		{
+			"Mode"		"1"
+		}
+		"item_medallion_of_courage"
+		{
+			"Mode"		"1"
+		}
+		"item_heavy_blade"
+		{
+			"Mode"		"1"
+		}
+		"item_seeds_of_serenity"
+		{
+			"Mode"		"1"
+		}
+		"item_dagger_of_ristul"
+		{
+			"Mode"		"1"
+		}
+		"item_stonefeather_satchel"
+		{
+			"Mode"		"1"
+		}
+	}
+}

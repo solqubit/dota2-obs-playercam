@@ -1,0 +1,68 @@
+OverPower Dota Player Cams  -  First-run guide
+================================================
+
+What it does: when you select a player in Dota 2 (spectator mode), the app
+turns on that player's camera in OBS (and turns off the previous one). It
+works on its own; just keep it open.
+
+You need: Windows 10/11, Dota 2 and OBS Studio installed, and an OBS scene:
+the one your event organizer sent you, or the example included in this .zip
+("example-scene.json"). Nothing else to install: the app brings everything
+it needs.
+
+
+1) INSTALL
+   - Extract the WHOLE .zip (right click -> Extract All). Do not run the app
+     from inside the zip and do not move the .exe out of its folder: it needs
+     the files next to it.
+   - Open "DotaPlayerCams.exe" inside the DotaPlayerCams folder.
+   - Language: the app starts in your Windows language (Spanish or English).
+     Change it in Settings -> Language; it stays fixed.
+
+2) IF WINDOWS SAYS "WINDOWS PROTECTED YOUR PC" (SmartScreen)
+   The app has no paid digital signature, so Windows does not recognize the
+   publisher. It does not mean it is dangerous.
+   - Click "More info", then "Run anyway". It only shows up the first time.
+
+3) IF YOUR ANTIVIRUS BLOCKS OR DELETES IT
+   The app listens to keys and clicks while Dota is the active window (that is
+   how it switches cameras instantly), and some antivirus tools mistake that
+   for spyware.
+   - Windows Security -> Virus & threat protection -> Manage settings ->
+     Exclusions -> Add or remove exclusions -> Add an exclusion -> Folder.
+   - Choose the whole DotaPlayerCams folder and open the app again.
+   - If it was deleted, restore it from the antivirus protection history,
+     then add the exclusion.
+
+4) IMPORT THE SCENE INTO OBS
+   - In OBS: "Scene Collection" menu -> "Import". Add the scene .json file
+     and confirm.
+   - Then "Scene Collection" -> pick the imported collection (the example is
+     called "Dota Player Cams (example)").
+   - With the example: in each group CAM_EQ1_1 ... CAM_EQ2_5, open the VDO_...
+     source and replace its URL with that player's VDO.Ninja link.
+
+5) TURN ON OBS WEBSOCKET AND ENTER THE PASSWORD
+   - In OBS: Tools -> "WebSocket Server Settings" -> tick "Enable WebSocket
+     server". Copy the password (or create one).
+   - In the app: "Settings" button (top right) -> paste it into "OBS
+     WebSocket password" -> "Save". It is stored only on this PC.
+
+6) FOLLOW THE CHECKS ON SCREEN
+   On start, the app checks OBS, Dota, the scene and the hotkeys. On the left
+   each item is green (good), yellow (warning) or red (missing), with
+   instructions or a "Fix" button. The app never changes anything without
+   asking, and Dota hotkeys are only fixed with Dota closed.
+   Click "Re-check everything" after each fix until everything is green.
+   Border and frame images: put them as Borde.png and Marco.png in the folder
+   DotaPlayerCams\_internal\assets and click "Fix".
+
+7) DURING THE MATCH ("Live" panel, on the right)
+   - "Team 1 side": choose Radiant or Dire after the coin toss.
+   - "Mode": Automatic = the camera follows the player you select.
+     "Hide all" = no camera on air (the app stops listening to keyboard and
+     mouse).
+   Keep the window open while you stream.
+
+Something not working? Look first at which item is red or yellow in the
+Checks panel; it almost always tells you what to do.
