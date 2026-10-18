@@ -12,7 +12,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-VERSION = sys.argv[1] if len(sys.argv) > 1 else "1.0.0"   # keep in sync with version_info.txt
+VERSION = sys.argv[1] if len(sys.argv) > 1 else "1.0.1"   # keep in sync with version_info.txt
 APP = "DotaPlayerCams"
 
 EXTRAS = [

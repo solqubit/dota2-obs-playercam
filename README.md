@@ -8,7 +8,7 @@ Spanish**.
 
 ![The app: setup checks on the left, live controls on the right](docs/img/app.png)
 
-*The app with its interface in Spanish; English is available in Settings → Language.*
+*The interface is also available in Spanish (Settings → Language).*
 
 *In game, the selected player's camera (here the "1" placeholder from a test scene) shows up
 between the minimap and the HUD, with its border.*
@@ -74,7 +74,7 @@ Visual C++ runtime). You only need:
 
 ## Installation
 
-1. Download `DotaPlayerCams-v1.0.0-windows.zip` from
+1. Download the latest `DotaPlayerCams-vX.Y.Z-windows.zip` from
    [Releases](https://github.com/solqubit/dota2-obs-playercam/releases) and extract the
    **whole** zip.
 2. Open `DotaPlayerCams\DotaPlayerCams.exe`.
@@ -207,12 +207,12 @@ stored in `%APPDATA%\OverPowerCamarasDota\`.
 .venv\Scripts\pyinstaller packaging/overpower_cams.spec --noconfirm
 ```
 ```bash
-.venv\Scripts\python packaging/make_zip.py 1.0.0
+.venv\Scripts\python packaging/make_zip.py 1.0.1
 ```
 
 This creates two git-ignored folders:
 - `dist\` with the results: `dist\DotaPlayerCams\` (the app, ready to run) and
-  `dist\DotaPlayerCams-v1.0.0-windows.zip`. The zip contains the app, both first-run guides,
+  `dist\DotaPlayerCams-v1.0.1-windows.zip`. The zip contains the app, both first-run guides,
   the license, the third-party notices and the example scene.
 - `build\` with PyInstaller's temporary files, safe to delete.
 

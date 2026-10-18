@@ -1,6 +1,7 @@
 """Piezas chicas de la ventana principal: estilos, puntos de estado, filas de revisión
 y la cuadrícula de cámaras."""
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont, QFontMetrics, QPalette
 from PySide6.QtWidgets import (QButtonGroup, QFrame, QGridLayout, QHBoxLayout, QLabel,
                                QPushButton, QVBoxLayout, QWidget)
 
@@ -16,15 +17,27 @@ def not_dota_msg() -> str:
               "«dota 2 beta», la que contiene la carpeta «game».")
 
 
-APP_STYLE = """
-QFrame#panel { border: 1px solid rgba(127,127,127,90); border-radius: 8px; }
-QFrame#topbar { background: rgba(127,127,127,38); border-radius: 8px; }
-QLabel#panelTitle { font-size: 11px; font-weight: bold; letter-spacing: 1px; color: palette(mid); }
-QLabel#detail { font-size: 11px; color: palette(dark); }
-QLabel#teamLabel { font-size: 11px; color: palette(dark); margin-top: 6px; }
-QFrame#checkRow { border-bottom: 1px dashed rgba(127,127,127,50); }
-QPushButton#seg { padding: 6px 14px; border: 1px solid rgba(127,127,127,90); }
-QPushButton#seg:checked { background: rgba(80,140,255,90); font-weight: bold; }
+SEG_PADDING_X = 14   # px a cada lado del texto en los botones del selector
+
+
+def muted_color(palette: QPalette) -> str:
+    """Gris para textos secundarios, legible sobre el fondo del tema (claro u oscuro).
+    Los roles del tema (mid, dark) quedan casi negros en el modo oscuro de Windows."""
+    dark_theme = palette.color(QPalette.ColorRole.Window).lightness() < 128
+    return "#a8a8a8" if dark_theme else "#5f5f5f"
+
+
+def app_style(palette: QPalette) -> str:
+    muted = muted_color(palette)
+    return f"""
+QFrame#panel {{ border: 1px solid rgba(127,127,127,90); border-radius: 8px; }}
+QFrame#topbar {{ background: rgba(127,127,127,38); border-radius: 8px; }}
+QLabel#panelTitle {{ font-size: 11px; font-weight: bold; letter-spacing: 1px; color: {muted}; }}
+QLabel#detail {{ font-size: 11px; color: {muted}; }}
+QLabel#teamLabel {{ font-size: 11px; color: {muted}; margin-top: 6px; }}
+QFrame#checkRow {{ border-bottom: 1px dashed rgba(127,127,127,50); }}
+QPushButton#seg {{ padding: 6px {SEG_PADDING_X}px; border: 1px solid rgba(127,127,127,90); }}
+QPushButton#seg:checked {{ background: rgba(80,140,255,90); font-weight: bold; }}
 """
 
 
@@ -66,6 +79,10 @@ class Segmented(QWidget):
             b = QPushButton(text)
             b.setObjectName("seg")
             b.setCheckable(True)
+            # el elegido va en negrita: reservar ese ancho para que el texto no se corte
+            bold = QFont(b.font())
+            bold.setBold(True)
+            b.setMinimumWidth(QFontMetrics(bold).horizontalAdvance(text) + 2 * SEG_PADDING_X + 8)
             b.clicked.connect(lambda _=False, v=value: on_pick(v))   # solo clicks del usuario
             self._group.addButton(b)
             lay.addWidget(b)

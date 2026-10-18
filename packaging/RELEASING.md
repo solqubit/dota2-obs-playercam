@@ -6,14 +6,14 @@ From the project root, with the `.venv` set up:
 
 ```
 .venv\Scripts\pyinstaller packaging/overpower_cams.spec --noconfirm
-.venv\Scripts\python packaging/make_zip.py 1.0.0
+.venv\Scripts\python packaging/make_zip.py 1.0.1
 ```
 
 Result:
 
 - `dist\DotaPlayerCams\DotaPlayerCams.exe`: a folder build with no UPX and embedded
   version info. `assets\Borde.png` ends up in `_internal\assets\`.
-- `dist\DotaPlayerCams-v1.0.0-windows.zip`, containing:
+- `dist\DotaPlayerCams-v1.0.1-windows.zip`, containing:
   - the app folder;
   - `FIRST_RUN_GUIDE.txt` and `GUIA_PRIMERA_VEZ.txt`;
   - `LICENSE.txt` and `THIRD_PARTY_NOTICES.md`;

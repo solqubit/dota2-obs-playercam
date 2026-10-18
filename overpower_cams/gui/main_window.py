@@ -25,7 +25,7 @@ from ..i18n import get_language, tr, tr_for
 from ..storage import LiveState
 from .checks_mixin import ChecksMixin
 from .settings_dialog import SettingsDialog
-from .widgets import APP_STYLE, CameraGrid, Segmented, detail_label, dot_html, panel
+from .widgets import CameraGrid, app_style, Segmented, detail_label, dot_html, panel
 
 MAX_EVENTS = 50
 AUTO_CHECK_MIN_S = 5.0   # al volver la ventana al frente, no revisar más seguido que esto
@@ -101,7 +101,7 @@ class MainWindow(ChecksMixin, QMainWindow):
         self.check_results: list[CheckResult] = []
 
         self.setWindowTitle(config.app_name())
-        self.setStyleSheet(APP_STYLE)
+        self.setStyleSheet(app_style(self.palette()))
         self.resize(1040, 660)
         self._build_ui()
 
