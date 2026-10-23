@@ -17,11 +17,12 @@ from obsws_python.error import OBSSDKRequestError
 from . import config, gsi_cfg, paths
 from .dota_keys import fix_keys_text, link_enabled, missing_slots, parse_player_keys
 from .i18n import tr
-from .obs_link import ALL_CAMERAS, ObsLink
+from .obs_link import ObsLink
 from .portraits import PortraitModel
 from .storage import Settings, Storage
 
 DOTA_EXE = "dota2.exe"
+ALL_CAMERAS = config.CAMERAS_TEAM1 + config.CAMERAS_TEAM2   # v1: la Task 8 reescribe estas revisiones
 _RESOURCE_NOT_FOUND = 600   # código de obs-websocket: la escena no existe
 
 # Textos largos ("Ver instrucciones"): funciones, para que salgan en el idioma elegido.
@@ -139,7 +140,7 @@ def _scan_scene(obs: ObsLink) -> _Scan:
     if not obs.connected:
         return _Scan("disconnected")
     try:
-        return _Scan("ok", obs.find_scene_items())
+        return _Scan("ok", obs.find_scene_items(config.SCENE_NAME))
     except OBSSDKRequestError as e:
         if e.code == _RESOURCE_NOT_FOUND:
             return _Scan("no_scene")
@@ -329,10 +330,6 @@ def run_checks(ctx: Context, *, is_running=paths.is_running) -> list[CheckResult
     """Todas las revisiones, en orden. No modifica nada y no lanza excepciones."""
     try:
         scan = _scan_scene(ctx.obs)
-        # Si en OBS cambió la escena (importar, otra colección, cámara nueva) después de
-        # conectar, los IDs del enlace quedaron viejos: se releen (sin apagar nada).
-        if scan.state == "ok" and ctx.obs.items_stale(scan.found):
-            ctx.obs.refresh_items()
     except Exception as e:  # noqa: BLE001
         scan = _Scan("lost", error=f"{type(e).__name__}: {e}")
     plan = [
@@ -419,7 +416,7 @@ def _fix_scene(ctx: Context) -> str:
         raise FixRefused(tr("No falta ningún acompañante en la escena"))
     creados = []
     for name in faltan:
-        if not ctx.obs.create_companion(name):
+        if not ctx.obs.create_companion(name, config.SCENE_NAME):
             if creados:
                 raise FixRefused(tr("OBS no me dejó crear «{name}» (ya creé: {done})",
                                     name=name, done=", ".join(creados)))

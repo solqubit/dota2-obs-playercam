@@ -9,7 +9,7 @@ from overpower_cams.dota_keys import fix_keys_text, missing_slots, parse_player_
 from overpower_cams.obs_link import ObsLink
 from overpower_cams.portraits import PortraitModel
 from overpower_cams.storage import Settings, Storage
-from conftest import FakeObsClient, layout_nuevo
+from conftest import FakeObsClient, filtros_camaraman, layout_camaraman, layout_nuevo
 
 DATA = Path(__file__).parent / "data" / "dotakeys_ejemplo.lst"
 IDS = ["dota", "gsi_cfg", "gsi_data", "keys", "obs", "scene", "companion_images", "portraits"]
@@ -88,15 +88,16 @@ def test_run_checks_no_modifica_nada(tmp_path):
     assert fake.inputs["Borde"] == {"file": str(tmp_path / "x.png")}
 
 
-def test_run_checks_no_apaga_camaras_en_obs(tmp_path):
+def test_run_checks_no_apaga_la_escena_al_aire_en_obs(tmp_path):
     """Revisar no puede cambiar lo que sale al aire (load_items apagaría todo)."""
-    ctx, fake = make_ctx(tmp_path)
+    fake = FakeObsClient(layout_nuevo(), scenes=layout_camaraman(), filters=filtros_camaraman())
+    ctx, _ = make_ctx(tmp_path, fake)
     ctx.obs.load_items()
-    ctx.obs.apply("CAM_EQ1_1", "test")
-    fake.named_calls.clear()
+    ctx.obs.apply("1 Hard carry", "test")
+    fake.ops.clear()
     run_checks(ctx, is_running=CERRADO)
-    assert fake.named_calls == []
-    assert fake.is_enabled("CAM_EQ1_1") is True
+    assert fake.ops == []
+    assert fake.is_enabled("1 Hard carry", "Juego") is True
 
 
 def test_una_revision_que_falla_no_tumba_a_las_demas(tmp_path, monkeypatch):
@@ -385,26 +386,10 @@ def test_apply_fix_id_desconocido(tmp_path):
 
 # ---------- la escena cambia después de conectar ----------
 
-def test_run_checks_relee_la_escena_si_cambio_y_apply_ya_funciona(tmp_path):
+def test_run_checks_ve_la_escena_importada_despues_de_conectar(tmp_path):
     fake = FakeObsClient(layout_nuevo(), scene_exists=False,
                          inputs={"Borde": {"file": str(tmp_path / "x.png")}})
     ctx, _ = make_ctx(tmp_path, fake)
     ctx.obs.load_items()                           # se conectó sin la escena
     fake.scene_exists = True                       # y luego la importaron
     assert check(ctx, "scene").status == "ok"
-    fake.named_calls.clear()
-    ctx.obs.apply("CAM_EQ1_1", "test")             # sin esperar al tope de apply
-    assert fake.is_enabled("CAM_EQ1_1") is True and fake.is_enabled("Borde") is True
-
-
-def test_run_checks_relee_ids_cambiados_sin_apagar_la_camara(tmp_path):
-    ctx, fake = make_ctx(tmp_path)
-    ctx.obs.load_items()
-    ctx.obs.apply("CAM_EQ1_1", "test")
-    fake.restart()                                 # otra colección: IDs nuevos
-    fake.dead = False
-    fake.named_calls.clear()
-    run_checks(ctx, is_running=CERRADO)
-    assert fake.named_calls == []
-    ctx.obs.apply("CAM_EQ1_2", "test")
-    assert fake.is_enabled("CAM_EQ1_2") is True

@@ -109,12 +109,45 @@ def layout_viejo(companions=("Borde",)):
     return layout
 
 
+def layout_camaraman(skip_scenes=(), skip_sources=(), borde=True):
+    """Colección Camaraman: {escena: layout}. `Juego` lleva las 10 escenas de jugador como ítems
+    (más la captura y el Borde) y cada escena de jugador sus 4 fuentes."""
+    from overpower_cams.config import PLAYER_SCENES, source_name
+    main = {"Captura de juego": None}
+    main.update({s: None for s in PLAYER_SCENES if s not in skip_scenes})
+    if borde:
+        main["Borde"] = None
+    scenes = {"Juego": main}
+    for s in PLAYER_SCENES:
+        scenes[s] = {source_name(k, s): None for k in ("Camara", "Foto", "Fondo", "Nombre")
+                     if source_name(k, s) not in skip_sources}
+    return scenes
+
+
+def filtros_camaraman(omitir=()):
+    """Filtros Move Source de `Juego` con los valores reales (claves de Move Transition)."""
+    def ajustes(px, py, sx, sy):
+        return {"pos": {"x": px, "x_sign": " ", "y": py, "y_sign": " "},
+                "scale": {"x": sx, "x_sign": " ", "y": sy, "y_sign": " "},
+                "source": "1 Hard carry"}
+    reales = {"H 4 habilidades": ajustes(431.0, 1778.0, 0.199, 0.2),
+              "H 5 habilidades": ajustes(456.0, 1819.0, 0.18, 0.18),
+              "H 6 habilidades": ajustes(466.0, 1860.0, 0.157, 0.156)}
+    return {"Juego": {n: {"enabled": False, "kind": "move_source_filter", "settings": v}
+                      for n, v in reales.items() if n not in omitir}}
+
+
 class FakeObsClient:
     """Cliente OBS falso, con la misma API que `obsws_python.ReqClient` (la parte que usa la app).
 
-    - `layout`: nombre de nivel superior -> None (fuente) o lista de nombres hijos (grupo).
+    - `layout`: layout de la escena `scene` (la de v1): nombre de nivel superior -> None (fuente) o
+      lista de nombres hijos (grupo). `scenes` agrega otras escenas {escena: layout}; las escenas
+      anidadas son ítems normales de la escena que las contiene.
+    - `filters`: {fuente: {filtro: {"enabled", "kind", "settings"}}}.
     - `calls`: cada `set_scene_item_enabled` como (contenedor, id, enabled);
-      `named_calls`: lo mismo con el nombre de la fuente (se resuelve al momento de la llamada).
+      `named_calls`: lo mismo con el nombre de la fuente; `ops`: TODA escritura en orden
+      (("enable", contenedor, nombre, bool), ("transform", ...), ("filter_settings", ...),
+      ("filter_enabled", ...)).
     - `inputs`: ajustes por nombre de entrada.
     - `fail_next=True`: la siguiente llamada lanza ConnectionError (una sola vez).
     - `restart()`: renumera los IDs y las llamadas siguientes lanzan ConnectionError
@@ -122,11 +155,16 @@ class FakeObsClient:
     - `factory(**kw)`: cuenta conexiones en `connections`; lanza `connect_error` si está puesto.
     """
 
-    def __init__(self, layout=None, scene="Escena Dota", scene_exists=True, inputs=None):
+    def __init__(self, layout=None, scene="Escena Dota", scene_exists=True, inputs=None,
+                 scenes=None, filters=None):
         self.scene = scene
-        self.scene_exists = scene_exists
-        self.layout = dict(layout if layout is not None else layout_nuevo())
+        self.scenes = {} if scenes is None else {k: dict(v) for k, v in scenes.items()}
+        if layout is not None or not self.scenes:
+            self.scenes[scene] = dict(layout if layout is not None else layout_nuevo())
+        self.removed = set() if scene_exists else {scene}
         self.inputs = {k: dict(v) for k, v in (inputs or {}).items()}
+        self.filters = {k: {n: {**f, "settings": dict(f["settings"])} for n, f in v.items()}
+                        for k, v in (filters or {}).items()}
         self.fail_next = False
         self.dead = False
         self.connect_error = None
@@ -134,29 +172,41 @@ class FakeObsClient:
         self.connect_kwargs = []
         self.calls = []
         self.named_calls = []
+        self.ops = []
         self.created = []
+        self.transforms = {}      # (contenedor, id) -> último transform pedido
         self._generation = 0
         self._assign_ids()
 
+    @property
+    def scene_exists(self):
+        return self.scene not in self.removed
+
+    @scene_exists.setter
+    def scene_exists(self, value):
+        (self.removed.discard if value else self.removed.add)(self.scene)
+
     # --- armado de la escena -------------------------------------------------
     def _assign_ids(self):
-        self._containers = {self.scene: []}
+        self._containers = {}
         self._names = {}          # (contenedor, id) -> nombre
         self.enabled = {}         # (contenedor, id) -> bool
-        n = self._generation * 100
-        for name, children in self.layout.items():
-            n += 1
-            is_group = children is not None
-            self._containers[self.scene].append(
-                {"sourceName": name, "sceneItemId": n, "isGroup": is_group})
-            self._names[(self.scene, n)] = name
-            if is_group:
-                subs = []
-                for child in children:
-                    n += 1
-                    subs.append({"sourceName": child, "sceneItemId": n, "isGroup": False})
-                    self._names[(name, n)] = child
-                self._containers[name] = subs
+        n = self._generation * 1000
+        for scene, layout in self.scenes.items():
+            self._containers[scene] = []
+            for name, children in layout.items():
+                n += 1
+                is_group = children is not None
+                self._containers[scene].append(
+                    {"sourceName": name, "sceneItemId": n, "isGroup": is_group})
+                self._names[(scene, n)] = name
+                if is_group:
+                    subs = []
+                    for child in children:
+                        n += 1
+                        subs.append({"sourceName": child, "sceneItemId": n, "isGroup": False})
+                        self._names[(name, n)] = child
+                    self._containers[name] = subs
         self._next_id = n + 1
 
     def restart(self):
@@ -174,9 +224,9 @@ class FakeObsClient:
         return self
 
     # --- ayudas para los tests ----------------------------------------------
-    def id_of(self, name):
-        for (container, item_id), n in self._names.items():
-            if n == name:
+    def id_of(self, name, container=None):
+        for (cont, item_id), n in self._names.items():
+            if n == name and container in (None, cont):
                 return item_id
         raise KeyError(name)
 
@@ -186,8 +236,12 @@ class FakeObsClient:
                 return container
         raise KeyError(name)
 
-    def is_enabled(self, name):
-        return self.enabled.get((self.container_of(name), self.id_of(name)))
+    def is_enabled(self, name, container=None):
+        container = container or self.container_of(name)
+        return self.enabled.get((container, self.id_of(name, container)))
+
+    def filter_settings(self, filtro, fuente="Juego"):
+        return self.filters[fuente][filtro]["settings"]
 
     # --- API de ReqClient ----------------------------------------------------
     def _check(self):
@@ -203,13 +257,13 @@ class FakeObsClient:
 
     def get_scene_item_list(self, name):
         self._check()
-        if name != self.scene or not self.scene_exists:
+        if name not in self.scenes or name in self.removed:
             raise OBSSDKRequestError("GetSceneItemList", 600, "No scene was found")
         return SimpleNamespace(scene_items=[dict(i) for i in self._containers[name]])
 
     def get_group_scene_item_list(self, name):
         self._check()
-        if name not in self._containers or name == self.scene:
+        if name not in self._containers or name in self.scenes:
             raise OBSSDKRequestError("GetGroupSceneItemList", 600, "No group was found")
         return SimpleNamespace(scene_items=[dict(i) for i in self._containers[name]])
 
@@ -220,7 +274,52 @@ class FakeObsClient:
             raise OBSSDKRequestError("SetSceneItemEnabled", 600, "No scene items were found")
         self.calls.append((scene_name, item_id, enabled))
         self.named_calls.append((self._names[key], enabled))
+        self.ops.append(("enable", scene_name, self._names[key], enabled))
         self.enabled[key] = enabled
+
+    def set_scene_item_transform(self, scene_name, item_id, transform):
+        self._check()
+        key = (scene_name, item_id)
+        if key not in self._names:
+            raise OBSSDKRequestError("SetSceneItemTransform", 600, "No scene items were found")
+        self.transforms[key] = dict(transform)
+        self.ops.append(("transform", scene_name, self._names[key], dict(transform)))
+
+    def get_source_filter_list(self, name):
+        self._check()
+        if name not in self.scenes or name in self.removed:
+            raise OBSSDKRequestError("GetSourceFilterList", 600, "No source was found")
+        return SimpleNamespace(filters=[
+            {"filterName": n, "filterKind": f["kind"], "filterEnabled": f["enabled"],
+             "filterIndex": i, "filterSettings": dict(f["settings"])}
+            for i, (n, f) in enumerate(self.filters.get(name, {}).items())])
+
+    def get_source_filter(self, source_name, filter_name):
+        self._check()
+        f = self.filters.get(source_name, {}).get(filter_name)
+        if f is None:
+            raise OBSSDKRequestError("GetSourceFilter", 600, "No filter was found")
+        return SimpleNamespace(filter_enabled=f["enabled"], filter_kind=f["kind"],
+                               filter_settings=dict(f["settings"]))
+
+    def set_source_filter_settings(self, source_name, filter_name, settings, overlay=None):
+        self._check()
+        f = self.filters.get(source_name, {}).get(filter_name)
+        if f is None:
+            raise OBSSDKRequestError("SetSourceFilterSettings", 600, "No filter was found")
+        if overlay:
+            f["settings"].update(settings)
+        else:
+            f["settings"] = dict(settings)
+        self.ops.append(("filter_settings", filter_name, dict(settings)))
+
+    def set_source_filter_enabled(self, source_name, filter_name, enabled):
+        self._check()
+        f = self.filters.get(source_name, {}).get(filter_name)
+        if f is None:
+            raise OBSSDKRequestError("SetSourceFilterEnabled", 600, "No filter was found")
+        f["enabled"] = enabled
+        self.ops.append(("filter_enabled", filter_name, enabled))
 
     def get_input_settings(self, name):
         self._check()
@@ -251,3 +350,9 @@ class FakeObsClient:
 
     def disconnect(self):
         pass
+
+
+def fake_camaraman(inputs=None, omitir_filtros=(), **kw):
+    """FakeObsClient con la colección Camaraman (escena principal `Juego`) y sus 3 filtros."""
+    return FakeObsClient(scenes=layout_camaraman(**kw), scene="Juego", inputs=inputs,
+                         filters=filtros_camaraman(omitir_filtros))

@@ -235,14 +235,14 @@ def _post(port, payload):
 
 
 def test_post_de_gsi_enciende_camara_y_se_ve_en_la_ventana(qapp, appdata):
-    from tests.conftest import gsi_payload
-    fake = FakeObsClient()
+    from tests.conftest import fake_camaraman, gsi_payload
+    fake = fake_camaraman()
     parts, win = _armar(fake)
     try:
         win.tick()
         _esperar(qapp, win)                              # conecta a OBS (falso)
         assert _post(parts.gsi.server_port, gsi_payload("r3")) == 200
-        assert fake.is_enabled("CAM_EQ1_3") is True and fake.is_enabled("Borde") is True
+        assert fake.is_enabled("1 Offlaner", "Juego") is True and fake.is_enabled("Borde") is True
         win.tick()
         qapp.processEvents()
         assert "1 Offlaner" in win.on_air_label.text()
@@ -252,7 +252,7 @@ def test_post_de_gsi_enciende_camara_y_se_ve_en_la_ventana(qapp, appdata):
         # "Ocultar todo" apaga la cámara y los acompañantes
         win.hide_button.click()
         win.wait_background(5)
-        assert fake.is_enabled("CAM_EQ1_3") is False and fake.is_enabled("Borde") is False
+        assert fake.is_enabled("1 Offlaner", "Juego") is False and fake.is_enabled("Borde") is False
     finally:
         win.close()
 

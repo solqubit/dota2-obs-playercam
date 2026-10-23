@@ -277,8 +277,10 @@ EN: dict[str, str] = {
     "Se perdió la conexión con OBS ({error})": "Lost connection to OBS ({error})",
     "La escena '{scene}' no existe en OBS": "The '{scene}' scene doesn't exist in OBS",
     "Fuentes de OBS cargadas": "OBS sources loaded",
-    "{cam} no está en la escena de OBS: se apaga la cámara anterior":
-        "{cam} isn't in the OBS scene: turning off the previous camera",
+    "{scene} no está en la escena de OBS: se apaga la escena anterior":
+        "{scene} isn't in the OBS scene: turning off the previous scene",
+    "{scene} no tiene cámara ni foto configuradas": "{scene} has no camera or photo set up",
+    "OBS rechazó un cambio en {name} ({error})": "OBS refused a change to {name} ({error})",
     "ninguna": "none",
     "Reconectado a OBS en {host}:{port}": "Reconnected to OBS at {host}:{port}",
     "reconexión": "reconnect",

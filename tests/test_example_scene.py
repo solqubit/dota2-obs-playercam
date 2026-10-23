@@ -43,12 +43,11 @@ class ClienteDesdeColeccion:
 
 
 def test_la_app_encuentra_camaras_y_acompanantes():
-    obs = ObsLink("127.0.0.1", 4455, "", client_factory=lambda **kw: ClienteDesdeColeccion(_coleccion()))
+    obs = ObsLink("127.0.0.1", 4455, "", main_scene=SCENE_NAME,
+                  client_factory=lambda **kw: ClienteDesdeColeccion(_coleccion()))
     assert obs.connect()
-    rep = obs.load_items()
-    assert rep.scene_found
-    assert rep.missing_cameras == []
-    assert rep.missing_companions == []
+    found = obs.find_scene_items(SCENE_NAME)
+    assert [n for n in CAMERAS_TEAM1 + CAMERAS_TEAM2 + COMPANIONS_V1 if n not in found] == []
 
 
 def test_cada_camara_es_un_grupo_con_su_vdo_adentro():
