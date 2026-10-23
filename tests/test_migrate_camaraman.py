@@ -181,6 +181,22 @@ def test_ejemplo_limpio(coleccion, tmp_path):
     assert fuentes["Borde"]["settings"]["file"] == ""
 
 
+def test_ejemplo_quita_lo_de_plugins_ajenos(coleccion, tmp_path):
+    col = _cargar(coleccion)
+    col["canvases"] = [{"info": {"name": "Aitum Vertical", "uuid": "x"}}]
+    col["sources"].append({"id": "scene", "name": "Escena vertical", "uuid": "u-vertical",
+                           "settings": {"items": [], "id_counter": 0}})
+    col["scene_order"].append({"name": "Escena vertical"})
+    coleccion.write_text(json.dumps(col), encoding="utf-8")
+    salida = tmp_path / "ejemplo.json"
+    assert _correr([coleccion, "--example", salida]) == 0
+    ejemplo = _cargar(salida)
+    assert "canvases" not in ejemplo
+    assert "Escena vertical" not in _fuentes(ejemplo)
+    assert "Escena vertical" not in [e["name"] for e in ejemplo["scene_order"]]
+    assert "Juego" in _fuentes(ejemplo)
+
+
 def test_ejemplo_con_apply_tambien_migra_la_original(coleccion, tmp_path):
     salida = tmp_path / "ejemplo.json"
     _correr([coleccion, "--apply", "--example", salida])

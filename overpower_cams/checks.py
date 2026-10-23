@@ -121,7 +121,7 @@ class Context:
     obs: ObsLink
     last_post_t: float | None
     now: float
-    assets_dir: Path        # imágenes de la app (Borde.png, Marco.png…), en _internal\assets del .exe
+    assets_dir: Path        # imágenes de la app (Borde.png, Mascara camara.png…), en _internal\assets del .exe
     portraits: PortraitModel
 
 

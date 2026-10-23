@@ -93,17 +93,9 @@ from obsws_python.error import OBSSDKRequestError  # noqa: E402
 _CAMS = [f"CAM_EQ1_{i}" for i in range(1, 6)] + [f"CAM_EQ2_{i}" for i in range(1, 6)]
 
 
-def layout_nuevo(companions=("Borde", "Marco")):
+def layout_nuevo(companions=("Borde",)):
     """Escena nueva: cada CAM_* es un grupo con su fuente VDO_* adentro."""
     layout = {cam: [f"VDO_{cam[4:]}"] for cam in _CAMS}
-    for c in companions:
-        layout[c] = None
-    return layout
-
-
-def layout_viejo(companions=("Borde",)):
-    """Escena vieja: cámaras sueltas dentro de los grupos "Equipo 1" / "Equipo 2"."""
-    layout = {"Equipo 1": _CAMS[:5], "Equipo 2": _CAMS[5:]}
     for c in companions:
         layout[c] = None
     return layout

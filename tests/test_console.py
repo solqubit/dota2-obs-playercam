@@ -32,3 +32,14 @@ def test_la_consola_avisa_el_bando_y_el_modo_al_arrancar():
     assert oculto[1] == "[AUTO] Modo: Ocultar todo — escribe 'auto' para reanudar"
     auto = consola.startup_lines(LiveState(1, "auto"))
     assert "Automático" in auto[1]
+
+
+def test_la_consola_cuenta_las_escenas_de_jugador_y_avisa_lo_que_falta(capsys):
+    import console as consola
+    from overpower_cams.obs_link import SceneReport
+    obs = type("Obs", (), {"report": SceneReport(missing_scenes=["2 Hard support"], borde=False),
+                           "main_scene": "Juego"})()
+    consola.show_items(obs)
+    out = capsys.readouterr().out
+    assert "[OBS] 9/10 escenas de jugador encontradas" in out
+    assert "[WARN] 2 Hard support no está en la escena" in out and "[WARN] Borde" in out

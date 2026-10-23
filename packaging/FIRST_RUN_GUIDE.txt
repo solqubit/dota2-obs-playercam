@@ -2,13 +2,18 @@ OverPower Dota Player Cams  -  First-run guide
 ================================================
 
 What it does: when you select a player in Dota 2 (spectator mode), the app
-turns on that player's camera in OBS (and turns off the previous one). It
-works on its own; just keep it open.
+puts that player's scene on air in OBS (camera or photo, name and border) and
+takes the previous one off. It works on its own; just keep it open.
 
-You need: Windows 10/11, Dota 2 and OBS Studio installed, and an OBS scene:
-the one your event organizer sent you, or the example included in this .zip
-("example-scene.json"). Nothing else to install: the app brings everything
-it needs.
+You need: Windows 10/11, Dota 2 and OBS Studio installed, the "Move
+Transition" plugin for OBS (see step 4), and an OBS scene collection: the one
+your event organizer sent you, or the example included in this .zip
+("example-scene.json"). The app itself brings everything it needs.
+
+Updating from v1? v2 uses a different OBS structure, so a v1 scene does not
+work with it: import the example (step 5). Your v1 settings (OBS password,
+Dota folder, language, side, learned portraits) are kept. Run the checks once
+so the GSI file is updated to also send abilities.
 
 
 1) INSTALL
@@ -34,35 +39,63 @@ it needs.
    - If it was deleted, restore it from the antivirus protection history,
      then add the exclusion.
 
-4) IMPORT THE SCENE INTO OBS
+4) INSTALL THE MOVE TRANSITION PLUGIN (required, not included)
+   - It is a free OBS plugin by Exeldro. Download it from its page on the OBS
+     Forum (obsproject.com -> Resources -> "Move Transition"), install it for
+     your OBS version and restart OBS.
+   - The app uses it to resize the player's scene when the player has 5 or 6
+     abilities. Without it, scenes still switch but are not resized.
+
+5) IMPORT THE SCENE INTO OBS
    - In OBS: "Scene Collection" menu -> "Import". Add the scene .json file
      and confirm.
    - Then "Scene Collection" -> pick the imported collection (the example is
-     called "Dota Player Cams (example)").
-   - With the example: in each group CAM_EQ1_1 ... CAM_EQ2_5, open the VDO_...
-     source and replace its URL with that player's VDO.Ninja link.
+     called "Camaraman").
+   - The collection has this structure (keep these names):
+       "Juego": the Dota 2 capture, the 10 player scenes and "Borde".
+       10 player scenes: "1 Hard carry", "1 Mid laner", "1 Offlaner",
+       "1 Soft support", "1 Hard support", and the same with "2 ".
+       4 sources inside each player scene: "Camara · <scene>",
+       "Foto · <scene>", "Fondo · <scene>" and "Nombre · <scene>"
+       (the separator is space, middle dot, space).
+       3 Move Source filters in "Juego": "H 4 habilidades",
+       "H 5 habilidades" and "H 6 habilidades". They hold the position and
+       scale of the player's scene for 4, 5 and 6 abilities. Adjust them to
+       your canvas (the example is built on 3840x2160).
+   - "Borde" is fixed and is only visible while a player scene is on air.
+   - If a collection has "Juego" but lacks player scenes, the app's "OBS
+     scene" page can create them by copying "1 Hard carry" (it asks first).
 
-5) TURN ON OBS WEBSOCKET AND ENTER THE PASSWORD
+6) TURN ON OBS WEBSOCKET AND ENTER THE PASSWORD
    - In OBS: Tools -> "WebSocket Server Settings" -> tick "Enable WebSocket
      server". Copy the password (or create one).
-   - In the app: "Settings" button (top right) -> paste it into "OBS
+   - In the app: "Settings" page (left menu) -> paste it into "OBS
      WebSocket password" -> "Save". It is stored only on this PC.
 
-6) FOLLOW THE CHECKS ON SCREEN
+7) FOLLOW THE CHECKS ON SCREEN
    On start, the app checks OBS, Dota, the scene and the hotkeys. On the left
    each item is green (good), yellow (warning) or red (missing), with
    instructions or a "Fix" button. The app never changes anything without
    asking, and Dota hotkeys are only fixed with Dota closed.
    Click "Re-check everything" after each fix until everything is green.
-   Border and frame images: put them as Borde.png and Marco.png in the folder
-   DotaPlayerCams\_internal\assets and click "Fix".
+   Images (border, camera mask and name background): they come with the app
+   in DotaPlayerCams\_internal\assets (Borde.png, Mascara camara.png and
+   Marco sin camara.png). Click "Fix" and the app sets them in OBS.
 
-7) DURING THE MATCH ("Live" panel, on the right)
-   - "Team 1 side": choose Radiant or Dire after the coin toss.
-   - "Mode": Automatic = the camera follows the player you select.
-     "Hide all" = no camera on air (the app stops listening to keyboard and
+8) FILL IN THE PLAYERS ("Players" page)
+   For each of the 10 players: name, camera link (VDO.Ninja), photo link and
+   Camera / Photo. Changes are saved and applied in OBS right away (name,
+   links and Camera/Photo); if that player is on air, you see it at once.
+   If the chosen link is empty, the scene uses the other one.
+
+9) DURING THE MATCH (bar at the top of the window)
+   - "Radiant is": choose which team is Radiant after the coin toss.
+   - "Mode": Automatic = the scene follows the player you select.
+     "Hide all" = nothing on air (the app stops listening to keyboard and
      mouse).
+   - Only one player scene is on at a time. "Test" in the "OBS scene" page
+     plays each H filter so you can adjust it.
    Keep the window open while you stream.
 
 Something not working? Look first at which item is red or yellow in the
-Checks panel; it almost always tells you what to do.
+Checks page; it almost always tells you what to do.

@@ -270,6 +270,7 @@ EN: dict[str, str] = {
     "la tecla {key} no seleccionó a {slot} en Dota": "pressed {key} but Dota did not select {slot}",
     "click retrato {slot} → {cam}": "click on portrait {slot} → {cam}",
     "tecla {slot}": "key {slot}",
+    "{n}/10 escenas de jugador encontradas": "{n}/10 player scenes found",
     "tecla {key} → {cam}": "key {key} → {cam}",
     "click en la barra superior (x={x}): esperando a GSI para aprenderlo":
         "click on the top bar (x={x}): waiting for GSI to learn it",

@@ -94,6 +94,8 @@ def show_items(obs):
     if not report.main_found:
         print("[OBS] " + tr("La escena '{scene}' no existe en OBS", scene=obs.main_scene) + ".")
         return
+    print("[OBS] " + tr("{n}/10 escenas de jugador encontradas",
+                        n=len(config.PLAYER_SCENES) - len(report.missing_scenes)))
     faltas = list(report.missing_scenes)
     for names in report.missing_sources.values():
         faltas += names

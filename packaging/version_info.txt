@@ -3,8 +3,8 @@
 # Executable version info (PyInstaller --version-file).
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(1, 0, 1, 0),
-    prodvers=(1, 0, 1, 0),
+    filevers=(2, 0, 0, 0),
+    prodvers=(2, 0, 0, 0),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -19,12 +19,12 @@ VSVersionInfo(
           '040904B0',
           [StringStruct('CompanyName', 'OverPower'),
            StringStruct('FileDescription', 'Dota 2 player cameras for OBS'),
-           StringStruct('FileVersion', '1.0.1.0'),
+           StringStruct('FileVersion', '2.0.0.0'),
            StringStruct('InternalName', 'DotaPlayerCams'),
            StringStruct('LegalCopyright', 'OverPower - GPL-3.0'),
            StringStruct('OriginalFilename', 'DotaPlayerCams.exe'),
            StringStruct('ProductName', 'OverPower Dota Player Cams'),
-           StringStruct('ProductVersion', '1.0.1.0')])
+           StringStruct('ProductVersion', '2.0.0.0')])
       ]),
     VarFileInfo([VarStruct('Translation', [1033, 1200])])
   ]

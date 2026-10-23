@@ -300,6 +300,11 @@ def ejemplo(col):
         if esc in fuentes:
             ajustes = fuentes[esc]["settings"]
             ajustes["items"] = [i for i in ajustes["items"] if SEP in i["name"]]
+    col.pop("canvases", None)                             # contenido de plugins ajenos (p. ej. Aitum Vertical)
+    ajenas = {n for n, s in fuentes.items() if s.get("id") == "scene" and n != MAIN_SCENE and n not in SCENES}
+    if ajenas:
+        col["sources"] = [s for s in col["sources"] if s["name"] not in ajenas]
+        col["scene_order"] = [e for e in col.get("scene_order", []) if e.get("name") not in ajenas]
     usados = _uuids_usados(col)
     col["sources"] = [s for s in col["sources"] if s.get("id") == "scene" or s["uuid"] in usados]
     for s in col["sources"]:

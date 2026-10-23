@@ -1,33 +1,40 @@
 # dota2-obs-playercam
 
-**OverPower Dota Player Cams**: a Windows desktop app that automatically switches player
-webcams in OBS during Dota 2 broadcasts. The camera switches instantly on spectator
-hotkeys and top-bar portrait clicks, and Game State Integration confirms it. The app also
-checks your setup and fixes it in one click. The interface is available in **English and
-Spanish**.
+**OverPower Dota Player Cams** (v2 "Camaraman"): a Windows desktop app that automatically
+switches player scenes in OBS during Dota 2 broadcasts. The player's scene (camera or photo,
+name and border) goes on air instantly on spectator hotkeys and top-bar portrait clicks, and
+Game State Integration confirms it. The app also checks your setup and fixes it in one click.
+The interface is available in **English and Spanish**.
 
-![The app: setup checks on the left, live controls on the right](docs/img/app.png)
+![The app: side menu, live status bar and the Players page](docs/img/app.png)
 
 *The interface is also available in Spanish (Settings → Language).*
 
-*In game, the selected player's camera (here the "1" placeholder from a test scene) shows up
-between the minimap and the HUD, with its border.*
+*In game, the selected player's camera shows up between the minimap and the HUD, with its
+border.*
 
 ![The player camera on stream](docs/img/in-game.png)
 
 ## What it does
 
-While you spectate a match, the app turns on the OBS camera of the player you have
-selected (for example, a VDO.Ninja link):
+While you spectate a match, the app puts on air the OBS scene of the player you have
+selected. Each player has a name, a camera link and a photo link (for example, VDO.Ninja
+links), and you choose whether the scene shows the camera or the photo:
 
 - **Instantly**, when you press a player's spectator hotkey (read from your Dota settings)
   or click their portrait in the top bar.
 - **Confirmed by Dota's Game State Integration (GSI).** GSI also covers clicks on a hero in
   the world, with about 1 s of delay because Dota sends data once per second.
-- **Turns the camera off** when you select something that isn't a hero (tower, creep,
+- **Takes the scene off air** when you select something that isn't a hero (tower, creep,
   courier…) or when you leave the match.
-- **Companions** (`Borde`, `Marco`): OBS elements that are only visible while a camera is
-  on air, such as a border or a frame.
+- **Fits the HUD:** the scene appears already in place, with the position and scale of the
+  Move Source filter that matches the player's number of abilities (4, 5 or 6), and the
+  filter's animation plays when that number changes while the player is on air. See
+  [The H 4/5/6 filters](#the-h-456-filters).
+- **`Borde`:** a fixed border that is visible only while a player scene is on air. It never
+  moves or resizes.
+- **Per-player settings:** name, camera link, photo link and Camera/Photo are applied in OBS
+  right away when you edit them (see [Players](#players)).
 - **Sides:** you set whether Team 1 is Radiant or Dire, and the app remembers it.
 
 ### It checks and fixes your setup for you
@@ -42,8 +49,9 @@ app **fixes it in one click** (always asking first) or tells you exactly what to
 | Data from Dota | Confirms data is arriving; if not, tells you how to enable it |
 | Spectator hotkeys | Assigns keys 1–0 to the 10 players and resolves clashes with other actions, only with Dota closed and after making a backup |
 | OBS & WebSocket | Checks the connection and password, and guides you if it isn't enabled |
-| OBS scene | Lists what's missing and creates the `Borde` and `Marco` companions if needed |
-| Border and frame images | Sets them from the app's image folder (see [Images](#border-and-frame-images)) |
+| OBS scene | Checks `Juego`, the 10 player scenes and their 4 sources each, the Move Transition plugin and the 3 H filters; creates missing player scenes by copying `1 Hard carry` |
+| Images | Sets the border, mask and background images from the app's image folder (see [Images](#border-mask-and-background-images)) |
+| Abilities in GSI | Makes sure the GSI file asks Dota for abilities, so the app knows how many each hero has |
 
 Hotkeys and portrait clicks work from the first use. If you change your Dota hotkeys while
 the app is open, it reloads them on its own. If OBS closes mid-broadcast, the app
@@ -70,7 +78,9 @@ Visual C++ runtime). You only need:
 - Dota 2 (Steam).
 - OBS Studio 30 or later, with the WebSocket server enabled (Tools → WebSocket Server
   Settings).
-- An OBS scene with the structure below. An example is included.
+- The **Move Transition** plugin by Exeldro for OBS (tested with 3.2.1). It is **required**
+  and **not bundled**: see [Install Move Transition](#install-move-transition).
+- An OBS scene collection with the structure below. An example is included.
 
 ## Installation
 
@@ -91,67 +101,123 @@ does so in **Automatic** mode, and it ignores everything that doesn't happen wit
 the active window. It doesn't store anything you type, and it only uses the input to detect
 spectator hotkeys and clicks.
 
+## Upgrading from v1
+
+v2 uses a different OBS structure (`Juego` plus one scene per player) instead of v1's
+`Escena Dota` with `CAM_EQ…` groups, so **v2 does not work with a v1 scene**. Import the
+example scene (or migrate your own collection) as described below.
+
+- Your v1 settings are kept: OBS password and port, Dota folder, language, side and learned
+  portraits live in `%APPDATA%\OverPowerCamarasDota\` and v2 reads them as they are. The new
+  settings (main scene name, team names, player names and links) start empty.
+- Extract v2 into a new folder (or replace the old one). v1.0.1 stays available under
+  Releases.
+- Run the Checks once: the GSI file is updated to also send abilities.
+
+## Install Move Transition
+
+The H 4/5/6 filters need the **Move Transition** plugin by Exeldro, which OBS does not
+include and this app does not bundle. Download it from its page on the OBS Forum
+(obsproject.com → Resources → "Move Transition"), install it for your OBS version and restart
+OBS. The Checks panel tells you if it or its filters are missing. Without it the app still
+switches scenes but cannot resize the scene for 5 or 6 abilities.
+
 ## The OBS scene
+
+### Structure (the "Camaraman" collection)
+
+The app works with this exact structure, by name:
+
+- **`Juego`** (the main scene; you can change the name in Settings): the Dota 2 game capture
+  (`Captura de juego`), the 10 player scenes as sources, and `Borde`.
+- **10 player scenes**, in position order: `1 Hard carry`, `1 Mid laner`, `1 Offlaner`,
+  `1 Soft support`, `1 Hard support`, and the same with `2 ` for Team 2. The player in
+  position N of Team 1 is `1 <role N>`.
+- **4 sources per player scene.** OBS does not allow two sources with the same name in a
+  collection, so each scene has its own, named after the scene (the separator is
+  space, middle dot, space):
+
+| Source | Type | What it is |
+|---|---|---|
+| `Camara · <scene>` | Browser | The player's camera link, with a mask filter |
+| `Foto · <scene>` | Browser | The player's photo link, with the same mask |
+| `Fondo · <scene>` | Image | Background of the name text |
+| `Nombre · <scene>` | Text | The player's name |
+
+Only one player scene is on at a time, and inside it only the camera or the photo.
+`Borde` is fixed and visible only while a player scene is on air.
+
+### The H 4/5/6 filters
+
+`Juego` has three **Move Source** filters (Move Transition): `H 4 habilidades`,
+`H 5 habilidades` and `H 6 habilidades`. Each holds the position and scale the player's scene
+should have for that number of abilities (for example, a Dota HUD with a 6th ability needs
+the scene smaller). You adjust them in one place, in OBS.
+
+- When a player goes on air, the scene appears already in place: the app reads the position
+  and scale from the filters (nothing is hardcoded).
+- The app changes the filters' `source` field to the player on air. It never creates
+  per-player filters.
+- A filter plays its animation only when the player's number of abilities changes while on
+  air (for example, with Aghanim's), and with the **Test** button in the OBS scene page.
+- With no abilities data the app uses 4; outside 4–6 it uses the nearest.
 
 ### Start with the example scene
 
-The repository includes a scene ready to import:
+The repository includes a collection ready to import:
 [`obs/example-scene.json`](obs/example-scene.json). The release `.zip` includes it as
-`example-scene.json`. It has the 10 camera groups, `Borde`, `Marco` and a Dota 2 game
-capture, and contains no devices or paths from any PC.
+`example-scene.json`. It has `Juego`, the 10 player scenes with their sources, `Borde`, the
+3 filters and a game capture of `dota2.exe`, and contains no devices, paths or links from any
+PC.
 
-1. In OBS: **Scene Collection → Import**. Add `example-scene.json` and click **Import**.
-2. **Scene Collection → Dota Player Cams (example)** to switch to it. Your current
-   collection is left untouched.
-3. **Cameras:** each group `CAM_EQ1_1` … `CAM_EQ2_5` contains a browser source
-   `VDO_EQ…` that shows "Team N · Player N". Double-click each one and replace the URL with
-   that player's VDO.Ninja *view* link (for example `https://vdo.ninja/?view=...`).
-4. **Border and frame:** open the app and, under **Checks → Border and frame images**,
-   click **Fix**. The border uses the image bundled with the app. For the frame, or to
-   change the border, see [Images](#border-and-frame-images).
-5. **Player name** (optional): add it as a text source **inside** the player's camera group,
-   so it turns on and off with the camera.
-6. **Layout:** the 10 groups sit in the same spot, since only one is ever shown at a time.
-   Move or scale them as you like. The scene is designed for 16:9; with a different canvas,
-   make sure everything stays on screen.
+1. Install [Move Transition](#install-move-transition) and restart OBS.
+2. In OBS: **Scene Collection → Import**. Add `example-scene.json` and click **Import**.
+3. **Scene Collection → Camaraman** to switch to it. Your current collection is left
+   untouched.
+4. Open the app. In **Checks**, click **Fix** on the image checks (border, masks and
+   backgrounds use the images bundled with the app). If you edit the collection yourself,
+   keep the names above.
+5. Go to **Players** and fill in each player's name and camera/photo links. They are applied
+   in OBS right away.
+6. **Layout:** the 10 player scenes sit in the same spot of `Juego`, since only one is shown
+   at a time. Adjust the H filters to match your canvas (the example is built on
+   3840×2160).
 
-The app checks the scene when it opens and flags anything missing in red or yellow.
+If you already have a collection with `Juego` (or want to build it on another PC), the
+**OBS scene** page can create the 10 player scenes by copying `1 Hard carry`, live over
+WebSocket and after asking you first.
 
-### Use your own scene
+### Players
 
-The app looks for these **exact** names inside the scene `Escena Dota`, either directly in
-the scene or inside groups. The names are fixed so existing scenes keep working:
+The **Players** page lists both teams with their 5 positions. For each player:
 
-| Element | What it is |
+| Field | What it does |
 |---|---|
-| `CAM_EQ1_1` … `CAM_EQ1_5` | Cameras for players 1–5 of Team 1 (required) |
-| `CAM_EQ2_1` … `CAM_EQ2_5` | Cameras for players 1–5 of Team 2 (required) |
-| `Borde`, `Marco` | Companions (border, frame): visible only while a camera is on air (optional) |
+| Name | Text of `Nombre · <scene>` |
+| Camera / Photo link | URL of `Camara · <scene>` / `Foto · <scene>` |
+| Camera / Photo | What the scene shows. If the chosen link is empty, it uses the other one |
+| Abilities | The player's current number of abilities, from GSI |
 
-Each `CAM_…` can be a single source (for example, a VDO.Ninja browser source) or a
-**group** holding the camera, the frame and the player's name. The app turns the whole
-element on and off.
+Changes are saved and applied in OBS immediately; if that player is on air, the change shows
+at once. Team names also set the side buttons ("Radiant is …"). Everything is saved in
+`%APPDATA%\OverPowerCamarasDota\`.
 
-The camera number is the player's position in their team. Radiant player 1 is the leftmost
-portrait in the top bar.
-
-### Border and frame images
+### Border, mask and background images
 
 The app keeps its images in **`DotaPlayerCams\_internal\assets\`** (in the source tree,
-`assets/`). We recommend keeping yours there too:
+`assets/`):
 
 | File | Used for |
 |---|---|
-| `Borde.png` | The border around the camera (bundled) |
-| `Marco.png` | The shared frame (not bundled: add your own) |
+| `Borde.png` | The fixed border (`Borde`) |
+| `Mascara camara.png` | Mask of every `Camara · …` and `Foto · …` |
+| `Marco sin camara.png` | Background of every `Fondo · …` |
 
-With the file in that folder, click **Fix** under **Checks → Border and frame images** and
-the app applies it to OBS live, without closing anything. The file name must match the OBS
-element (`Marco.png` for `Marco`). You can also use the **Browse…** buttons, which open that
-folder, or pick any image on your PC.
+Click **Fix** in **Checks** and the app applies them to OBS live, without closing anything.
+You can also use the **Browse…** buttons or pick any image on your PC.
 
-> Installing a new version replaces that folder. Keep a copy of your images and put them
-> back afterwards.
+> Installing a new version replaces that folder. Keep a copy of any image you changed and put
+> it back afterwards.
 
 ## Development
 
@@ -184,17 +250,20 @@ Tests (they never touch your real Steam, Dota or OBS):
 | Path | Contents |
 |---|---|
 | `overpower_cams/engine.py` | Engine: selected hero → camera (confirmed by GSI) |
-| `overpower_cams/obs_link.py` | OBS connection, companions, reconnection |
+| `overpower_cams/obs_link.py` | OBS connection, player scenes, H filters, reconnection |
 | `overpower_cams/gsi_server.py` | HTTP server that receives Dota's data |
 | `overpower_cams/local_input.py` | Hotkeys and clicks while Dota is active |
 | `overpower_cams/portraits.py` | Positions of the top-bar portraits |
 | `overpower_cams/dota_keys.py`, `gsi_cfg.py` | Spectator hotkeys and the GSI file |
 | `overpower_cams/checks.py` | Checks and fixes |
+| `overpower_cams/players.py`, `scene_builder.py` | Per-player settings; creating the player scenes |
+| `overpower_cams/abilities.py` | Counts the abilities that take a HUD slot |
 | `overpower_cams/i18n.py` | Translations (English / Spanish) |
 | `overpower_cams/gui/` | Window (PySide6) |
 | `console.py` | Console version |
-| `assets/` | App images (`Borde.png`); in the .exe they live in `_internal\assets\` |
-| `obs/example-scene.json` | Example OBS scene, ready to import |
+| `assets/` | App images (border, mask, background); in the .exe they live in `_internal\assets\` |
+| `obs/example-scene.json` | Example OBS collection (Camaraman v2), ready to import |
+| `tools/` | Maintenance scripts (collection migration, innate-ability data) |
 | `packaging/` | PyInstaller build, zip script and first-run guides |
 | `docs/gamestate_integration_obs.cfg` | Example of the GSI file the app creates |
 
@@ -207,12 +276,12 @@ stored in `%APPDATA%\OverPowerCamarasDota\`.
 .venv\Scripts\pyinstaller packaging/overpower_cams.spec --noconfirm
 ```
 ```bash
-.venv\Scripts\python packaging/make_zip.py 1.0.1
+.venv\Scripts\python packaging/make_zip.py 2.0.0
 ```
 
 This creates two git-ignored folders:
 - `dist\` with the results: `dist\DotaPlayerCams\` (the app, ready to run) and
-  `dist\DotaPlayerCams-v1.0.1-windows.zip`. The zip contains the app, both first-run guides,
+  `dist\DotaPlayerCams-v2.0.0-windows.zip`. The zip contains the app, both first-run guides,
   the license, the third-party notices and the example scene.
 - `build\` with PyInstaller's temporary files, safe to delete.
 

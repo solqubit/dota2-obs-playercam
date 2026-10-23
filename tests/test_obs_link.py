@@ -462,7 +462,7 @@ def test_rutas_de_imagen():
     link = make_link(fake)
     link.connect()
     assert link.get_image_path("Borde") == "C:/a.png"
-    assert link.get_image_path("Marco") is None              # no existe la entrada
+    assert link.get_image_path("Inexistente") is None              # no existe la entrada
     assert link.set_image_path("Borde", "C:/b.png") is True
     assert fake.inputs["Borde"] == {"file": "C:/b.png", "otra": 1}   # overlay
 

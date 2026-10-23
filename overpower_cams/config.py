@@ -32,12 +32,6 @@ def source_name(kind: str, scene: str) -> str:
 # Acompañantes: visibles ÚNICAMENTE mientras hay una escena de jugador al aire.
 COMPANIONS = ["Borde"]
 
-# --- Restos de v1 (alias hasta que migren sus últimos consumidores) ---
-SCENE_NAME = "Escena Dota"   # v1: escena principal
-CAMERAS_TEAM1 = ["CAM_EQ1_1", "CAM_EQ1_2", "CAM_EQ1_3", "CAM_EQ1_4", "CAM_EQ1_5"]   # v1
-CAMERAS_TEAM2 = ["CAM_EQ2_1", "CAM_EQ2_2", "CAM_EQ2_3", "CAM_EQ2_4", "CAM_EQ2_5"]   # v1
-COMPANIONS_V1 = ["Borde", "Marco"]   # v1: acompañantes con Marco
-
 # Estados de partida (map.game_state) en los que SÍ se muestran cámaras.
 LIVE_STATES = {
     "DOTA_GAMERULES_STATE_PRE_GAME",

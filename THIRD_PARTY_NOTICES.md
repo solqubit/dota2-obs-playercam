@@ -14,6 +14,11 @@ build (.exe) includes these libraries, each under its own license:
 | Python | PSF License | https://www.python.org |
 | OpenDota dotaconstants (data: list of innate passive abilities) | MIT, Copyright (c) 2017 The OpenDota Project | https://github.com/odota/dotaconstants |
 
+**Not bundled:** the app expects the **Move Transition** plugin by Exeldro to be installed in
+OBS (https://obsproject.com/forum/resources/move-transition.913/). It is a separate OBS plugin
+with its own license; this app neither includes nor redistributes it, and only talks to OBS
+through the WebSocket server.
+
 The executable is built with PyInstaller. PyInstaller is GPL-2.0 with a bootloader
 exception, which allows distributing packaged programs under any license.
 
