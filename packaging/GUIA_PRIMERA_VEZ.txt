@@ -5,10 +5,10 @@ Qué hace: cuando miras a un jugador en Dota 2, la app pone al aire en OBS
 la escena de ese jugador (cámara o foto, nombre y borde) y quita la anterior.
 Funciona sola; tú solo la dejas abierta.
 
-Necesitas: Windows 10/11, Dota 2 y OBS Studio instalados, el plugin "Move
+Necesitas: Windows 10/11, Dota 2 y OBS Studio 31.1 o posterior, el plugin "Move
 Transition" para OBS (paso 4) y una colección de escenas de OBS: la que te
 envió quien organiza el evento, o la de ejemplo que viene en este .zip
-("example-scene.json").
+(carpeta "Camaraman"; instrucciones completas en Camaraman\LEEME-DEMO.md).
 
 ¿Actualizas desde la v1? La v2 usa otra estructura de OBS, así que una escena
 de la v1 no sirve: importa la de ejemplo (paso 5). Tus ajustes de la v1
@@ -41,19 +41,23 @@ también envíe las habilidades.
    - Si lo borró, restaura el archivo desde el historial de protección del
      antivirus y luego agrega la exclusión.
 
-4) INSTALAR EL PLUGIN MOVE TRANSITION (obligatorio, no viene incluido)
-   - Es un plugin gratuito de OBS hecho por Exeldro. Descárgalo de su página
-     en el foro de OBS (obsproject.com -> Resources -> "Move Transition"),
-     instálalo para tu versión de OBS y reinicia OBS.
+4) INSTALAR EL PLUGIN MOVE TRANSITION (obligatorio, instalador incluido)
+   - Con OBS cerrado, ejecuta Camaraman\Plugins\move-transition-3.2.1-windows-installer.exe.
+     Es el instalador original de Exeldro; también se incluyen su licencia y fuente.
+     Abre OBS después. La app no instala plugins automáticamente.
    - La app lo usa para ajustar el tamaño de la escena del jugador cuando
      tiene 5 o 6 habilidades. Sin él, las escenas cambian igual pero no se
      ajustan.
 
 5) IMPORTAR LA ESCENA EN OBS
+   - Ejecuta PREPARAR_DEMO.cmd y elige la carpeta Camaraman extraída del ZIP.
+     Esto enlaza el borde, máscaras y fondos. No modifica tu OBS actual.
    - Abre OBS -> menú "Colección de escenas" -> "Importar".
-   - Agrega el archivo .json de la escena y confirma.
+   - Agrega Camaraman\Ecenas\Camaraman-lista.json y confirma.
    - Luego "Colección de escenas" -> elige la colección importada
-     (la de ejemplo se llama "Camaraman").
+     (la de ejemplo se llama "Camaraman Demo").
+   - Usa lienzo base 3840x2160. La salida puede ser 1080p o QHD sin tocar los filtros.
+     Consulta Camaraman\LEEME-DEMO.md si quieres cambiar el lienzo base.
    - La colección tiene esta estructura (conserva los nombres):
        "Juego": la captura de Dota 2, las 10 escenas de jugador y "Borde".
        10 escenas de jugador: "1 Hard carry", "1 Mid laner", "1 Offlaner",
@@ -92,7 +96,8 @@ también envíe las habilidades.
    Para cada uno de los 10 jugadores: nombre, link de cámara (VDO.Ninja),
    link de foto y Cámara / Foto. Los cambios se guardan y se aplican en OBS
    al momento (nombre, links y Cámara/Foto); si ese jugador está al aire, lo
-   ves enseguida. Si el link elegido está vacío, la escena usa el otro.
+   ves enseguida. Si la URL elegida está vacía, cámara y foto quedan ocultas;
+   la posición y escala de la escena se siguen aplicando.
 
 9) EN LA PARTIDA (barra de arriba de la ventana)
    - "Radiant es": elige qué equipo es Radiant según el sorteo.

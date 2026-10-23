@@ -8,7 +8,7 @@ The interface is available in **English and Spanish**.
 
 ![The app: side menu, live status bar and the Players page](docs/img/app.png)
 
-*The interface is also available in Spanish (Settings → Language).*
+*Sample player data shown. The interface is also available in Spanish (Settings → Language).*
 
 *In game, the selected player's camera shows up between the minimap and the HUD, with its
 border.*
@@ -25,14 +25,19 @@ links), and you choose whether the scene shows the camera or the photo:
   or click their portrait in the top bar.
 - **Confirmed by Dota's Game State Integration (GSI).** GSI also covers clicks on a hero in
   the world, with about 1 s of delay because Dota sends data once per second.
-- **Takes the scene off air** when you select something that isn't a hero (tower, creep,
-  courier…) or when you leave the match.
+- **Takes the scene off air** when GSI reports no selected hero or when you leave the match.
+  Summons and illusions are limited by the data Dota exposes: selecting the Spirit Bear
+  can still report Lone Druid as selected, so their HUD cannot yet be distinguished reliably.
 - **Fits the HUD:** the scene appears already in place, with the position and scale of the
   Move Source filter that matches the player's number of abilities (4, 5 or 6), and the
   filter's animation plays when that number changes while the player is on air. See
   [The H 4/5/6 filters](#the-h-456-filters).
 - **`Borde`:** a fixed border that is visible only while a player scene is on air. It never
   moves or resizes.
+- **Innates and upgrades:** counts HUD slots rather than treating every passive innate as
+  a separate icon. For example, Treant's Nature's Guise counts as a slot. New Shard/Scepter
+  abilities count when Dota reports them in GSI; an upgrade to an existing ability does
+  not add a slot. The filter changes while that player is on air.
 - **Per-player settings:** name, camera link, photo link and Camera/Photo are applied in OBS
   right away when you edit them (see [Players](#players)).
 - **Sides:** you set whether Team 1 is Radiant or Dire, and the app remembers it.
@@ -76,10 +81,10 @@ Visual C++ runtime). You only need:
 
 - Windows 10 or 11.
 - Dota 2 (Steam).
-- OBS Studio 30 or later, with the WebSocket server enabled (Tools → WebSocket Server
+- OBS Studio **31.1 or later** (required by the bundled Move 3.2.x), with the WebSocket server enabled (Tools → WebSocket Server
   Settings).
-- The **Move Transition** plugin by Exeldro for OBS (tested with 3.2.1). It is **required**
-  and **not bundled**: see [Install Move Transition](#install-move-transition).
+- The **Move Transition** plugin by Exeldro for OBS (3.2.1). It is **required**;
+  its official installer is included in the demo: see [Install Move Transition](#install-move-transition).
 - An OBS scene collection with the structure below. An example is included.
 
 ## Installation
@@ -116,10 +121,11 @@ example scene (or migrate your own collection) as described below.
 
 ## Install Move Transition
 
-The H 4/5/6 filters need the **Move Transition** plugin by Exeldro, which OBS does not
-include and this app does not bundle. Download it from its page on the OBS Forum
-(obsproject.com → Resources → "Move Transition"), install it for your OBS version and restart
-OBS. The Checks panel tells you if it or its filters are missing. Without it the app still
+The H 4/5/6 filters need the **Move Transition** plugin by Exeldro. The release includes
+the original `Camaraman/Plugins/move-transition-3.2.1-windows-installer.exe`, verified
+against the [official release](https://github.com/exeldro/obs-move-transition/releases/tag/3.2.1),
+plus its matching source archive and GPL license. Close OBS, run the installer and restart
+OBS. Installation is manual. The Checks panel tells you if it or its filters are missing. Without it the app still
 switches scenes but cannot resize the scene for 5 or 6 abilities.
 
 ## The OBS scene
@@ -164,24 +170,29 @@ the scene smaller). You adjust them in one place, in OBS.
 
 ### Start with the example scene
 
-The repository includes a collection ready to import:
-[`obs/example-scene.json`](obs/example-scene.json). The release `.zip` includes it as
-`example-scene.json`. It has `Juego`, the 10 player scenes with their sources, `Borde`, the
+The release includes a complete **Camaraman** folder: graphics, scene template and plugin
+installer. See the [demo guide, including canvas conversion values](docs/DEMO_CAMARAMAN.md).
+The template is also at [`obs/example-scene.json`](obs/example-scene.json).
+It has `Juego`, the 10 player scenes with their sources, `Borde`, the
 3 filters and a game capture of `dota2.exe`, and contains no devices, paths or links from any
 PC.
 
 1. Install [Move Transition](#install-move-transition) and restart OBS.
-2. In OBS: **Scene Collection → Import**. Add `example-scene.json` and click **Import**.
-3. **Scene Collection → Camaraman** to switch to it. Your current collection is left
+2. Run **`PREPARAR_DEMO.cmd`**, choose the extracted **Camaraman** folder, then import
+   the generated **`Camaraman/Ecenas/Camaraman-lista.json`** in OBS: **Scene Collection → Import**.
+   The preparer links all graphics locally without changing OBS or the template.
+3. **Scene Collection → Camaraman Demo** to switch to it. Your current collection is left
    untouched.
-4. Open the app. In **Checks**, click **Fix** on the image checks (border, masks and
-   backgrounds use the images bundled with the app). If you edit the collection yourself,
-   keep the names above.
+4. Open the app and run **Checks**. The prepared scene already points to the graphics
+   inside **Camaraman**. Image **Fix** is available as a fallback. If you move the resource
+   folder, run the preparer and import the new generated scene again.
 5. Go to **Players** and fill in each player's name and camera/photo links. They are applied
    in OBS right away.
 6. **Layout:** the 10 player scenes sit in the same spot of `Juego`, since only one is shown
    at a time. Adjust the H filters to match your canvas (the example is built on
-   3840×2160).
+   **3840×2160**, the base canvas). Output can be 1080p or QHD without changing presets.
+   QHD output (2560×1440) is separate from the base canvas. See the [exact values and
+   conversion factors](docs/DEMO_CAMARAMAN.md#lienzo-base-salida-y-parámetros-de-transformación).
 
 If you already have a collection with `Juego` (or want to build it on another PC), the
 **OBS scene** page can create the 10 player scenes by copying `1 Hard carry`, live over
@@ -195,7 +206,7 @@ The **Players** page lists both teams with their 5 positions. For each player:
 |---|---|
 | Name | Text of `Nombre · <scene>` |
 | Camera / Photo link | URL of `Camara · <scene>` / `Foto · <scene>` |
-| Camera / Photo | What the scene shows. If the chosen link is empty, it uses the other one |
+| Camera / Photo | What the scene shows. If the chosen URL is empty, both media sources stay hidden; the scene transform still applies |
 | Abilities | The player's current number of abilities, from GSI |
 
 Changes are saved and applied in OBS immediately; if that player is on air, the change shows
@@ -270,6 +281,18 @@ Tests (they never touch your real Steam, Dota or OBS):
 Per-PC data (settings, language, side, learned portraits, backups and `error.log`) is
 stored in `%APPDATA%\OverPowerCamarasDota\`.
 
+After a Dota patch, refresh the bundled innate HUD metadata for all heroes with:
+
+```bash
+.venv\Scripts\python tools/update_innates.py --refresh
+```
+
+This reads Valve's `herolist`/`herodata` data feeds and distinguishes separate innate
+icons, hidden innates, and innates forced into a normal HUD slot. The app itself uses
+the bundled snapshot offline. GSI does not expose the full UI behavior flags, so future
+patches can require refreshing this snapshot. Automated upgrade tests simulate GSI;
+live verification still requires observing the hero's HUD before and after the upgrade.
+
 ### Build
 
 ```bash
@@ -282,7 +305,8 @@ stored in `%APPDATA%\OverPowerCamarasDota\`.
 This creates two git-ignored folders:
 - `dist\` with the results: `dist\DotaPlayerCams\` (the app, ready to run) and
   `dist\DotaPlayerCams-v2.0.0-windows.zip`. The zip contains the app, both first-run guides,
-  the license, the third-party notices and the example scene.
+  the licenses, third-party notices and the complete Camaraman demo (graphics, scene,
+  preparer and Move Transition 3.2.1 installer plus its source).
 - `build\` with PyInstaller's temporary files, safe to delete.
 
 ### Releasing

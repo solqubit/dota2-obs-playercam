@@ -91,7 +91,6 @@ class ObsLink:
         self._presets: dict[int, dict | None] = {n: None for n in config.HUD_FILTERS}
         self._warned: set[str] = set()                # escenas ausentes ya avisadas
         self._warned_mode: set[str] = set()           # escenas sin cámara ni foto ya avisadas
-        self._warned_fallback: set[str] = set()       # escenas con la otra fuente en uso ya avisadas
         self._last_scene: str | None = None           # escena encendida hoy en OBS
         self.connected = False
         self.error: str | None = None
@@ -331,18 +330,6 @@ class ObsLink:
         except Exception:  # noqa: BLE001 - un proveedor roto no debe tumbar el cambio de escena
             return {}
 
-    def _warn_fallback(self, scene: str, player: PlayerConfig | None, use: str | None):
-        """Avisa (una vez por escena) si lo elegido no tiene link y se usa la otra fuente."""
-        wanted = (player.use if player.use in ("camera", "photo") else "camera") if player else None
-        if use is None or use == wanted:
-            self._warned_fallback.discard(scene)
-        elif scene not in self._warned_fallback:
-            self._warned_fallback.add(scene)
-            if wanted == "photo":
-                self._emit(tr("{scene}: no hay link de foto, se usa la cámara", scene=scene))
-            else:
-                self._emit(tr("{scene}: no hay link de cámara, se usa la foto", scene=scene))
-
     def _set_mode(self, scene: str):
         """Dentro de la escena: enciende Camara o Foto según la configuración y apaga la otra."""
         player = self._provided_players().get(scene)
@@ -350,10 +337,9 @@ class ObsLink:
         if use is None:
             if scene not in self._warned_mode:
                 self._warned_mode.add(scene)
-                self._emit(tr("{scene} no tiene cámara ni foto configuradas", scene=scene))
+                self._emit(tr("{scene}: la fuente elegida no tiene URL; cámara y foto quedan ocultas", scene=scene))
         else:
             self._warned_mode.discard(scene)
-        self._warn_fallback(scene, player, use)
         chosen = {"camera": "Camara", "photo": "Foto"}.get(use)
         order = ([chosen] if chosen else []) + [k for k in ("Camara", "Foto") if k != chosen]
         for kind in order:
@@ -415,7 +401,7 @@ class ObsLink:
                 self._fail(e)
 
     def refresh_player_mode(self, scene: str) -> bool:
-        """Si `scene` está al aire, vuelve a aplicar solo Cámara/Foto (`apply` no hace nada con la
+        """Si `scene` está al aire, reaplica posición y Cámara/Foto (`apply` no hace nada con la
         escena que ya está al aire). No lanza nunca ni espera a una reconexión en curso."""
         if not self.connected or scene != self._last_scene:
             return False
@@ -423,6 +409,7 @@ class ObsLink:
             if not self.connected or self._client is None or scene != self._last_scene:
                 return False
             try:
+                self._place(scene, clamp_abilities(self._last_abilities))
                 self._set_mode(scene)
             except Exception as e:  # noqa: BLE001
                 self._fail(e)

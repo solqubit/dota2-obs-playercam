@@ -139,7 +139,7 @@ class PlayersPage(QWidget):
         grid.setColumnMinimumWidth(last, 0)
         for col, stretch in ((2, 2), (3, 3), (4, 3)):
             grid.setColumnStretch(col, stretch)
-        heads = [tr("Rol"), tr("Nombre"), tr("Cámara (VDO.Ninja)"), tr("Foto (VDO.Ninja)"),
+        heads = [tr("Rol"), tr("Nombre"), tr("URL de cámara"), tr("URL de foto"),
                  tr("Usar"), tr("Habilidades")]
         head_bg = QFrame()
         head_bg.setObjectName("tableRow")
@@ -304,3 +304,7 @@ class PlayersPage(QWidget):
             text = "→ Radiant" if team == radiant else "→ Dire"
             if hint.text() != text:
                 hint.setText(text)
+            side = "radiant" if team == radiant else "dire"
+            if hint.property("side") != side:
+                hint.setProperty("side", side)
+                repolish(hint)

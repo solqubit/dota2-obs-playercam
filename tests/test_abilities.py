@@ -1,3 +1,5 @@
+import pytest
+
 from overpower_cams.abilities import count_abilities, hud_preset
 
 
@@ -62,11 +64,54 @@ def test_muestra_real_cubre_4_5_y_6():
 
 
 def test_innata_pasiva_no_cuenta_pero_la_activa_si():
-    assert "lion_to_hell_and_back" in mod.INNATE_PASSIVES
-    assert "invoker_invoke" not in mod.INNATE_PASSIVES
+    assert "lion_to_hell_and_back" in mod.NON_SLOT_INNATES
+    assert "invoker_invoke" not in mod.NON_SLOT_INNATES
     assert count_abilities(_ab("a", "b", "c", "d", "lion_to_hell_and_back")) == 4
     assert count_abilities(_ab("a", "b", "c", "d", "invoker_invoke")) == 5
 
 
-def test_lista_de_innatas_pasivas_cargada():
-    assert len(mod.INNATE_PASSIVES) == 172
+def test_catalogo_de_innatas_cargado():
+    assert len(mod.NON_SLOT_INNATES) == 171
+
+
+def test_treant_cuenta_su_innata_pasiva_en_el_hud():
+    base = _ab("treant_natures_grasp", "treant_leech_seed", "treant_living_armor",
+               "treant_natures_guise", "treant_overgrowth")
+    base["ability3"]["passive"] = True
+    assert count_abilities(base) == 5
+    base["ability5"] = {"name": "treant_eyes_in_the_forest", "level": 1}
+    assert count_abilities(base) == 6
+
+
+@pytest.mark.parametrize("flags,expected", [
+    (mod.PASSIVE, False),
+    (mod.PASSIVE | mod.FORCE_NO_INNATE_UI, True),
+    (mod.PASSIVE | mod.FORCE_NO_INNATE_UI | mod.HIDDEN, False),
+    (mod.PASSIVE | mod.INNATE_UI, False),
+    (4, True),                         # innata activa con espacio normal
+    (4 | mod.INNATE_UI, False),        # manda la UI, no ser activa/pasiva
+])
+def test_indicadores_de_ui_sin_excepciones_por_heroe(flags, expected):
+    assert mod.innate_uses_hud_slot(flags) is expected
+
+
+# Catálogo consultado para los 127 héroes de Valve. Los demás usan el icono separado
+# o están ocultos. Esta expectativa es independiente de la regla de bits del motor.
+CATALOGO = json.loads((Path(__file__).parent.parent / "overpower_cams" / "data" /
+                      "innate_abilities.json").read_text(encoding="utf-8"))
+INNATAS_CON_ESPACIO = {
+    "mirana_celestial_quiver", "lich_death_charge", "phantom_assassin_blur", "chen_zealot",
+    "invoker_invoke", "lone_druid_spirit_bear", "treant_natures_guise",
+    "visage_silent_as_the_grave", "troll_warlord_switch_stance", "earth_spirit_stone_caller",
+    "monkey_king_mischief", "marci_special_delivery", "kez_switch_weapons",
+}
+
+
+@pytest.mark.parametrize("name", sorted(CATALOGO["abilities"]))
+def test_clasificacion_de_cada_innata_del_catalogo(name):
+    assert (name not in mod.NON_SLOT_INNATES) == (name in INNATAS_CON_ESPACIO)
+
+
+def test_datos_incompletos_no_inventan_espacios():
+    assert count_abilities({"ability0": {}, "ability1": {"name": ""},
+                            "ability_extra": {"name": "no_es_una_ranura"}}) is None

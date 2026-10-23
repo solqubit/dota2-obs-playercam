@@ -20,6 +20,9 @@ THEMES = {
         "accent": "#2f6feb", "accent_soft": "rgba(47,111,235,46)", "nav_active": "#ffffff",
         "onair_bg": "#173b22", "onair_border": "#2ea043", "onair_text": "#e6e8ec",
         "intro_bg": "#3a2d12", "intro_border": "#d29922", "onair_row": "rgba(46,160,67,40)",
+        "radiant_bg": "#252e29", "radiant_border": "#465b4d", "radiant_text": "#afbeb4",
+        "side_selected": "#304238", "side_selected_text": "#d4ded7",
+        "dire_bg": "#30292b", "dire_border": "#60494e", "dire_text": "#c3b2b7",
     },
     "light": {
         "bg": "#f3f5f8", "card": "#ffffff", "border": "#d5dae1", "text": "#1f2328",
@@ -27,6 +30,9 @@ THEMES = {
         "accent": "#2f6feb", "accent_soft": "rgba(47,111,235,30)", "nav_active": "#1747a6",
         "onair_bg": "#dafbe1", "onair_border": "#2ea043", "onair_text": "#0f3d1c",
         "intro_bg": "#fff3d6", "intro_border": "#d29922", "onair_row": "rgba(46,160,67,34)",
+        "radiant_bg": "#f0f4f1", "radiant_border": "#c4d0c8", "radiant_text": "#4c6052",
+        "side_selected": "#e0e9e3", "side_selected_text": "#344e3d",
+        "dire_bg": "#f6f1f2", "dire_border": "#d8c9cd", "dire_text": "#6d555d",
     },
 }
 
@@ -121,6 +127,8 @@ QPushButton#seg[pos="middle"], QPushButton#seg[pos="last"] {{ border-left: none;
 QPushButton#seg:hover {{ color: {text}; }}
 QPushButton#seg:checked {{ background: {accent}; color: #ffffff; font-weight: 600;
     border-color: {accent}; }}
+QPushButton#seg[sideChoice="true"]:checked {{ background: {side_selected}; color: {side_selected_text};
+    border: 1px solid {radiant_border}; font-weight: 600; }}
 
 QListWidget#eventList {{ background: {card}; border: 1px solid {border}; border-radius: 10px;
     padding: 8px; font-family: Consolas, monospace; font-size: 12px; }}
@@ -130,7 +138,12 @@ QFrame#tableRow {{ background: transparent; border: none; border-bottom: 1px sol
     border-radius: 0px; }}
 QFrame#tableRow[onair="true"] {{ background: {onair_row}; }}
 QLabel#colHeader {{ font-size: 12px; color: {muted}; }}
-QLabel#teamHint {{ font-size: 12px; color: {muted}; }}
+QLabel#teamHint, QLabel#sideBadge {{ font-size: 12px; font-weight: 500;
+    border-radius: 6px; padding: 3px 8px; }}
+QFrame#card QLabel[side="radiant"] {{ background: {radiant_bg}; color: {radiant_text};
+    border: 1px solid {radiant_border}; }}
+QFrame#card QLabel[side="dire"] {{ background: {dire_bg}; color: {dire_text};
+    border: 1px solid {dire_border}; }}
 """.format(**c)
 
 

@@ -1,6 +1,6 @@
 """Habilidades de un jugador según GSI -> preset del HUD (filtro `H 4/5/6 habilidades`).
 
-Sin E/S (salvo cargar una vez la lista de innatas al importar). En el GSI de espectador la
+Sin E/S (salvo cargar una vez el catálogo de innatas al importar). En el GSI de espectador la
 sección es `abilities.team2.player0.ability0…` (la misma forma que `player` y `hero`, que
 recorre `engine.iter_players`).
 
@@ -8,14 +8,14 @@ Regla (validada con una captura real de espectador): lugares del HUD = cantidad 
 `abilityN` (dict) de GSI, SIN contar los nombres que sean:
   - `generic_hidden` (ranura vacía/oculta),
   - `special_bonus*` (talentos),
-  - innatas pasivas: GSI sí lista las innatas (p. ej. `lion_to_hell_and_back`,
-    `storm_spirit_galvanized`) pero las pasivas se ven como un icono chico aparte, no como
-    lugar del HUD. Las innatas activas (`invoker_invoke`, `kez_switch_weapons`,
-    `lone_druid_spirit_bear`…) sí ocupan lugar y cuentan.
-GSI no marca las innatas, así que se usa `data/innate_passives.json` (innatas con
-comportamiento Passive, generado por `tools/update_innates.py` desde OpenDota dotaconstants,
-MIT; hay que regenerarlo tras parches). Las habilidades robadas/devoradas (Rubick, Doom)
-cuentan porque GSI las lista como `abilityN` normales.
+  - innatas que usan el icono separado o están ocultas. Ser pasiva NO basta para
+    descartarla: FORCE_NO_INNATE_UI permite que una innata pasiva ocupe un espacio
+    normal (Nature's Guise de Treant).
+GSI no manda esos indicadores: `data/innate_abilities.json` guarda los comportamientos
+de Valve para las innatas de todos los héroes. Se regenera con `tools/update_innates.py
+--refresh` tras parches. Las habilidades nuevas de Shard/Cetro y las robadas/devoradas
+cuentan cuando aparecen en GSI, sin sumar espacios por tener un objeto. No se filtra
+por nivel, cooldown, can_cast o ability_active: no describen la visibilidad en el HUD.
 """
 import json
 
@@ -26,15 +26,32 @@ HUD_MIN = min(HUD_FILTERS)   # 4
 HUD_MAX = max(HUD_FILTERS)   # 6
 
 
-def _cargar_innatas_pasivas() -> frozenset[str]:
+# DOTA_ABILITY_BEHAVIOR (uint64), de los indicadores del propio juego.
+HIDDEN = 1
+PASSIVE = 2
+INNATE_UI = 1 << 43
+FORCE_NO_INNATE_UI = 1 << 49
+
+
+def innate_uses_hud_slot(behavior: int) -> bool:
+    """Clasifica una innata por su UI, sin excepciones por nombre de héroe."""
+    if behavior & (HIDDEN | INNATE_UI):
+        return False
+    return not behavior & PASSIVE or bool(behavior & FORCE_NO_INNATE_UI)
+
+
+def _cargar_innatas_sin_espacio() -> frozenset[str]:
     try:
-        ruta = resource_path("overpower_cams/data/innate_passives.json")
-        return frozenset(json.loads(ruta.read_text(encoding="utf-8")))
-    except (OSError, ValueError):
+        ruta = resource_path("overpower_cams/data/innate_abilities.json")
+        data = json.loads(ruta.read_text(encoding="utf-8"))
+        current = {name for name, flags in data["abilities"].items()
+                   if not innate_uses_hud_slot(int(flags))}
+        return frozenset(current | set(data["legacy_non_slots"]))
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
         return frozenset()
 
 
-INNATE_PASSIVES = _cargar_innatas_pasivas()
+NON_SLOT_INNATES = _cargar_innatas_sin_espacio()
 
 
 def count_abilities(player_abilities: dict) -> int | None:
@@ -44,11 +61,11 @@ def count_abilities(player_abilities: dict) -> int | None:
         return None
     total = 0
     for key, ab in player_abilities.items():
-        if not (str(key).startswith("ability") and isinstance(ab, dict)):
+        if not (str(key).startswith("ability") and str(key)[7:].isdigit() and isinstance(ab, dict)):
             continue
         name = str(ab.get("name", ""))
-        if (name == "generic_hidden" or name.startswith("special_bonus")
-                or name in INNATE_PASSIVES):
+        if (not name or name == "generic_hidden" or name.startswith("special_bonus")
+                or name in NON_SLOT_INNATES):
             continue
         total += 1
     return total or None

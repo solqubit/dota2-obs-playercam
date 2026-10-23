@@ -12,12 +12,14 @@ build (.exe) includes these libraries, each under its own license:
 | PySide6 / Shiboken6 (Qt for Python) | LGPL-3.0 (or GPL-2.0 / GPL-3.0) | https://www.qt.io/qt-for-python |
 | Qt 6 (bundled with PySide6) | LGPL-3.0 | https://www.qt.io |
 | Python | PSF License | https://www.python.org |
-| OpenDota dotaconstants (data: list of innate passive abilities) | MIT, Copyright (c) 2017 The OpenDota Project | https://github.com/odota/dotaconstants |
+| OpenDota dotaconstants (legacy innate names retained for older GSI data) | MIT, Copyright (c) 2017 The OpenDota Project | https://github.com/odota/dotaconstants |
 
-**Not bundled:** the app expects the **Move Transition** plugin by Exeldro to be installed in
-OBS (https://obsproject.com/forum/resources/move-transition.913/). It is a separate OBS plugin
-with its own license; this app neither includes nor redistributes it, and only talks to OBS
-through the WebSocket server.
+The release demo also redistributes **Move Transition 3.2.1** by Exeldro, a separate OBS
+plugin under GPL-2.0 (see its included license and source headers for per-file terms).
+The original Windows installer, matching upstream source archive and license are together
+in `Camaraman/Plugins/`. All three files are verified with pinned SHA-256 hashes during
+packaging. Upstream: https://github.com/exeldro/obs-move-transition/releases/tag/3.2.1.
+The app talks to OBS through WebSocket; the plugin is installed separately by the user.
 
 The executable is built with PyInstaller. PyInstaller is GPL-2.0 with a bootloader
 exception, which allows distributing packaged programs under any license.
@@ -28,4 +30,6 @@ be replaced with other compatible versions.
 The full source code of this app is at https://github.com/solqubit/dota2-obs-playercam.
 
 Dota 2 is a trademark of Valve Corporation. OBS Studio is a project of the OBS Project.
+Current innate HUD behavior metadata is a snapshot of Valve's public Dota 2 data feed
+(https://www.dota2.com/datafeed/herodata), refreshed with `tools/update_innates.py`.
 This project is not affiliated with or endorsed by Valve or the OBS Project.

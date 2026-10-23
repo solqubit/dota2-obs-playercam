@@ -121,8 +121,9 @@ def test_editar_links_cambia_la_url_y_reaplica_camara_o_foto(qapp, appdata):
         _editar(row.camera_edit, "https://vdo.ninja/?view=cam")
         _esperar(qapp, win)
         assert fake.inputs["Camara · 1 Mid laner"]["url"] == "https://vdo.ninja/?view=cam"
-        parts.obs.apply("1 Mid laner", "test")              # al aire: solo hay cámara
-        assert fake.is_enabled("Camara · 1 Mid laner", "1 Mid laner") is True
+        parts.obs.apply("1 Mid laner", "test")              # Foto elegida vacía: no usar cámara
+        assert fake.is_enabled("Camara · 1 Mid laner", "1 Mid laner") is False
+        assert fake.is_enabled("Foto · 1 Mid laner", "1 Mid laner") is False
         _editar(row.photo_edit, "https://vdo.ninja/?view=foto")   # aparece la foto elegida
         _esperar(qapp, win)
         p = parts.storage.load_players()["1 Mid laner"]
@@ -211,10 +212,14 @@ def test_nombre_de_equipo_actualiza_barra_ajustes_y_bando(qapp, appdata):
         _editar(page.team_edits[1], "Team Liquid")
         assert parts.storage.load_teams() == TeamsConfig("Team Liquid", "")
         assert win.side_selector.buttons[1].text() == "Team Liquid"
+        assert win.live_bar.radiant_label.text() == "Radiant: Team Liquid"
+        assert win.live_bar.dire_label.text() == "Dire: Equipo 2"
         assert win.settings_page.team_combo.itemText(0) == "Team Liquid"
         win.side_selector.buttons[2].click()
         qapp.processEvents()
         assert page.side_hints[1].text() == "→ Dire" and page.side_hints[2].text() == "→ Radiant"
+        assert win.live_bar.radiant_label.text() == "Radiant: Equipo 2"
+        assert win.live_bar.dire_label.text() == "Dire: Team Liquid"
     finally:
         win.close()
 
@@ -320,7 +325,7 @@ def test_paginas_en_ingles(qapp, appdata):
     parts, win = _armar(_fake())
     try:
         labels = {lbl.text() for lbl in win.findChildren(QLabel)}
-        assert {"Role", "Name", "Camera (VDO.Ninja)", "Photo (VDO.Ninja)", "Use",
+        assert {"Role", "Name", "Camera URL", "Photo URL", "Use",
                 "Abilities"} <= labels
         row = win.players_page.rows["1 Hard carry"]
         assert row.use_selector.buttons["camera"].text() == "Camera"

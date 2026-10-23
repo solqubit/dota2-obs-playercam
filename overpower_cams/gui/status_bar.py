@@ -117,12 +117,17 @@ class LiveBar(QFrame):
     def __init__(self, on_side, on_mode):
         super().__init__()
         self.setObjectName("card")
-        lay = QHBoxLayout(self)
-        lay.setContentsMargins(16, 10, 16, 10)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(16, 10, 16, 10)
+        root.setSpacing(8)
+        lay = QHBoxLayout()
+        root.addLayout(lay)
         lay.setSpacing(10)
         lay.addWidget(field_label(tr("Radiant es")))
         t1, t2 = team_names(TeamsConfig())
         self.side_selector = Segmented([(t1, 1), (t2, 2)], on_side)
+        for button in self.side_selector.buttons.values():
+            button.setProperty("sideChoice", True)
         lay.addWidget(self.side_selector)
         lay.addSpacing(18)
         lay.addWidget(field_label(tr("Modo")))
@@ -133,14 +138,37 @@ class LiveBar(QFrame):
         self.note = ElidedLabel()      # una línea: si no entra, "…" y el texto entero en el tooltip
         self.note.setObjectName("detail")
         lay.addWidget(self.note, 1)
+        sides = QHBoxLayout()
+        sides.setSpacing(10)
+        self.radiant_label, self.dire_label = QLabel(), QLabel()
+        for label, side in ((self.radiant_label, "radiant"), (self.dire_label, "dire")):
+            label.setObjectName("sideBadge")
+            label.setProperty("side", side)
+            label.setTextFormat(Qt.TextFormat.PlainText)
+            sides.addWidget(label)
+        sides.addStretch(1)
+        root.addLayout(sides)
+        self._teams = TeamsConfig()
+        self._radiant_team = 1
+        self._refresh_assignment()
 
     def set_team_names(self, teams: TeamsConfig) -> None:
+        self._teams = TeamsConfig(teams.team1, teams.team2)
         t1, t2 = team_names(teams)
         self.side_selector.set_label(1, t1)
         self.side_selector.set_label(2, t2)
+        self._refresh_assignment()
+
+    def _refresh_assignment(self) -> None:
+        names = team_names(self._teams)
+        radiant, dire = names[self._radiant_team - 1], names[2 - self._radiant_team]
+        self.radiant_label.setText(f"Radiant: {radiant}")
+        self.dire_label.setText(f"Dire: {dire}")
 
     def set_values(self, radiant_team: int, mode: str) -> None:
+        self._radiant_team = radiant_team
         self.side_selector.set_value(radiant_team)
+        self._refresh_assignment()
         self.mode_selector.set_value(mode)
         note = input_note(mode)
         self.note.set_full_text(note)

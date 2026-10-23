@@ -9,8 +9,9 @@ def test_valores_por_defecto():
 def test_effective_use_los_4_casos():
     assert effective_use(PlayerConfig(camera_url="c", photo_url="f", use="camera")) == "camera"
     assert effective_use(PlayerConfig(camera_url="c", photo_url="f", use="photo")) == "photo"
-    # lo elegido no tiene URL: cae a lo otro
-    assert effective_use(PlayerConfig(photo_url="f", use="camera")) == "photo"
-    assert effective_use(PlayerConfig(camera_url="c", use="photo")) == "camera"
+    # Una selección vacía no muestra la fuente alternativa.
+    assert effective_use(PlayerConfig(photo_url="f", use="camera")) is None
+    assert effective_use(PlayerConfig(camera_url="c", use="photo")) is None
+    assert effective_use(PlayerConfig(camera_url="c", photo_url="  ", use="photo")) is None
     # ninguna
     assert effective_use(PlayerConfig(use="photo")) is None

@@ -21,12 +21,7 @@ class TeamsConfig:
 
 
 def effective_use(p: PlayerConfig) -> str | None:
-    """Lo elegido si tiene URL; si no, lo otro si tiene URL; si no, None."""
+    """Respeta la fuente elegida; sin URL queda en blanco, sin cambiar a la otra."""
     urls = {"camera": p.camera_url, "photo": p.photo_url}
     chosen = p.use if p.use in urls else "camera"
-    other = "photo" if chosen == "camera" else "camera"
-    if urls[chosen]:
-        return chosen
-    if urls[other]:
-        return other
-    return None
+    return chosen if urls[chosen].strip() else None

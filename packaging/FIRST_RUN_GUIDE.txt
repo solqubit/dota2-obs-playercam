@@ -5,10 +5,10 @@ What it does: when you select a player in Dota 2 (spectator mode), the app
 puts that player's scene on air in OBS (camera or photo, name and border) and
 takes the previous one off. It works on its own; just keep it open.
 
-You need: Windows 10/11, Dota 2 and OBS Studio installed, the "Move
+You need: Windows 10/11, Dota 2 and OBS Studio 31.1 or later, the "Move
 Transition" plugin for OBS (see step 4), and an OBS scene collection: the one
 your event organizer sent you, or the example included in this .zip
-("example-scene.json"). The app itself brings everything it needs.
+(the Camaraman folder; full instructions in Camaraman\LEEME-DEMO.md).
 
 Updating from v1? v2 uses a different OBS structure, so a v1 scene does not
 work with it: import the example (step 5). Your v1 settings (OBS password,
@@ -39,18 +39,22 @@ so the GSI file is updated to also send abilities.
    - If it was deleted, restore it from the antivirus protection history,
      then add the exclusion.
 
-4) INSTALL THE MOVE TRANSITION PLUGIN (required, not included)
-   - It is a free OBS plugin by Exeldro. Download it from its page on the OBS
-     Forum (obsproject.com -> Resources -> "Move Transition"), install it for
-     your OBS version and restart OBS.
+4) INSTALL THE MOVE TRANSITION PLUGIN (required, installer included)
+   - Close OBS, run Camaraman\Plugins\move-transition-3.2.1-windows-installer.exe,
+     then restart OBS. This is Exeldro's original installer; its license and source
+     are included too. The app does not install plugins automatically.
    - The app uses it to resize the player's scene when the player has 5 or 6
      abilities. Without it, scenes still switch but are not resized.
 
 5) IMPORT THE SCENE INTO OBS
+   - Run PREPARAR_DEMO.cmd and select the extracted Camaraman folder.
+     This links all graphics without changing your current OBS collection.
    - In OBS: "Scene Collection" menu -> "Import". Add the scene .json file
-     and confirm.
+     (Camaraman\Ecenas\Camaraman-lista.json) and confirm.
    - Then "Scene Collection" -> pick the imported collection (the example is
-     called "Camaraman").
+     called "Camaraman Demo").
+   - Use a 3840x2160 base canvas. Output may be 1080p or QHD without changing filters.
+     See Camaraman\LEEME-DEMO.md for base-canvas conversion details.
    - The collection has this structure (keep these names):
        "Juego": the Dota 2 capture, the 10 player scenes and "Borde".
        10 player scenes: "1 Hard carry", "1 Mid laner", "1 Offlaner",
@@ -86,7 +90,7 @@ so the GSI file is updated to also send abilities.
    For each of the 10 players: name, camera link (VDO.Ninja), photo link and
    Camera / Photo. Changes are saved and applied in OBS right away (name,
    links and Camera/Photo); if that player is on air, you see it at once.
-   If the chosen link is empty, the scene uses the other one.
+   If the selected URL is empty, both media sources are hidden; the scene transform still applies.
 
 9) DURING THE MATCH (bar at the top of the window)
    - "Radiant is": choose which team is Radiant after the coin toss.
