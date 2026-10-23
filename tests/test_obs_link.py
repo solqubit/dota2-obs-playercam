@@ -227,6 +227,7 @@ def test_retrigger_activa_solo_el_filtro_pedido():
 
 def test_retrigger_sin_conexion_o_sin_filtro_no_lanza():
     fake, link = listo(fake_camaraman(omitir_filtros=("H 6 habilidades",)))
+    link.apply(HC, "x")
     link.retrigger(HC, 6)
     assert link.connected is True
     link.close()
@@ -486,3 +487,98 @@ def test_crear_borde_en_la_escena_principal():
     assert pos(fake, "Borde") is True
     link.apply(None, "y")
     assert pos(fake, "Borde") is False
+
+
+# ---------- correcciones de la ronda 1 ----------
+
+def test_retrigger_actualiza_las_habilidades_para_la_reconexion():
+    fake, link = listo()
+    link.apply(HC, "x", 4)
+    link.retrigger(HC, 5)
+    fake.restart()
+    assert link.get_image_path("Borde") is None              # la llamada falla
+    assert link.connected is False
+    assert link.ensure_connected(HC) is True
+    assert fake.transforms[("Juego", fake.id_of(HC, "Juego"))]["positionX"] == 456.0
+
+
+def test_retrigger_actualiza_el_pedido_pendiente_de_la_misma_escena():
+    fake, link = listo()
+    fake.fail_next = True
+    link.apply(HC, "x", 4)                                   # falla: queda pendiente con 4
+    link.retrigger(HC, 6)
+    assert link.ensure_connected(None) is True
+    assert fake.transforms[("Juego", fake.id_of(HC, "Juego"))]["positionX"] == 466.0
+
+
+def test_retrigger_de_otra_escena_no_hace_nada():
+    fake, link = listo()
+    link.apply(HC, "x", 4)
+    fake.ops.clear()
+    link.retrigger(MID, 5)
+    assert fake.ops == []
+
+
+def test_retrigger_no_espera_a_una_reconexion_en_curso():
+    fake = fake_camaraman()
+    gate, entered = threading.Event(), threading.Event()
+    gate.set()
+
+    def lenta(**kw):
+        entered.set()
+        assert gate.wait(5)
+        return fake.factory(**kw)
+
+    link = ObsLink("127.0.0.1", 4455, "pw", client_factory=lenta, players_provider=jugadores)
+    link.connect()
+    link.load_items()
+    link.apply(HC, "x", 4)
+    fake.fail_next = True
+    link.apply(MID, "falla")
+    assert link.connected is False
+
+    gate.clear()
+    entered.clear()
+    t = threading.Thread(target=lambda: link.ensure_connected(None))
+    t.start()
+    assert entered.wait(5)
+    t0 = time.monotonic()
+    link.retrigger(HC, 5)
+    assert time.monotonic() - t0 < 0.5                       # volvió de inmediato
+    gate.set()
+    t.join(5)
+
+
+def test_ids_que_cambian_con_la_conexion_viva_se_recuperan():
+    fake, link = listo()
+    fake.restart()                                           # otra colección: IDs nuevos
+    fake.dead = False
+    link.apply(HC, "x", 4)
+    assert pos(fake, HC) is True and pos(fake, "Borde") is True
+    assert fake.is_enabled(source_name("Camara", HC), HC) is True
+    assert fake.transforms[("Juego", fake.id_of(HC, "Juego"))]["positionX"] == 431.0
+    assert link.connected is True
+
+
+def test_rechazo_de_presets_no_marca_desconexion_ni_impide_encender():
+    from obsws_python.error import OBSSDKRequestError
+    fake, link = listo()
+
+    def rechaza(name):
+        raise OBSSDKRequestError("GetSourceFilterList", 702, "cancelado")
+
+    fake.get_source_filter_list = rechaza
+    link.apply(HC, "x", 4)
+    assert link.connected is True
+    assert not [o for o in fake.ops if o[0] == "transform"]
+    assert pos(fake, HC) is True
+
+
+def test_aviso_sin_camara_ni_foto_una_vez_por_escena():
+    events = []
+    players = jugadores(**{"1_Hard_carry": PlayerConfig()})
+    fake, link = listo(players=players, events=events)
+    link.apply(HC, "a")
+    link.apply(None, "b")
+    link.apply(HC, "c")
+    assert len([e for e in events if "no tiene cámara ni foto" in e]) == 1

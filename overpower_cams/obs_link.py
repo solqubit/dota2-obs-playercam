@@ -89,6 +89,7 @@ class ObsLink:
         self._inner: dict[str, dict[str, int]] = {}   # escena de jugador -> {fuente: id}
         self._presets: dict[int, dict | None] = {n: None for n in config.HUD_FILTERS}
         self._warned: set[str] = set()                # escenas ausentes ya avisadas
+        self._warned_mode: set[str] = set()           # escenas sin cámara ni foto ya avisadas
         self._last_scene: str | None = None           # escena encendida hoy en OBS
         self.connected = False
         self.error: str | None = None
@@ -174,9 +175,9 @@ class ObsLink:
         """Posición y escala de los filtros H 4/5/6 (None si el filtro falta)."""
         try:
             filters = self._client.get_source_filter_list(self.main_scene).filters
-        except OBSSDKRequestError as e:
+        except OBSSDKRequestError as e:   # un rechazo de OBS solo deja sin presets (no es una caída)
             if e.code != _RESOURCE_NOT_FOUND:
-                raise
+                self._emit(tr("OBS rechazó un cambio en {name} ({error})", name=self.main_scene, error=e))
             filters = []
         by_name = {f.get("filterName"): f for f in filters}
         return {n: _preset(by_name.get(name)) for n, name in config.HUD_FILTERS.items()}
@@ -264,10 +265,26 @@ class ObsLink:
                 self._emit(tr("OBS rechazó un cambio en {name} ({error})", name=what, error=e))
             return False
 
+    def _id_call(self, what: str, lookup, op) -> bool:
+        """`op(item_id)` con el ID que da `lookup()`. Si OBS dice "no existe" (600) sobre un ID que se
+        creía bueno (otra colección, reimportada), se releen los IDs (con el tope de frecuencia) y se
+        reintenta una vez. Otros rechazos solo avisan; los fallos de conexión se propagan."""
+        for attempt in (0, 1):
+            item_id = lookup()
+            if item_id is None:
+                return False
+            try:
+                op(item_id)
+                return True
+            except OBSSDKRequestError as e:
+                if e.code != _RESOURCE_NOT_FOUND or attempt or not self._refresh_if_due():
+                    self._emit(tr("OBS rechazó un cambio en {name} ({error})", name=what, error=e))
+                    return False
+        return False
+
     def _enable_main(self, name: str, enabled: bool):
-        if name in self._scene_ids:
-            self._soft(name, self._client.set_scene_item_enabled, self.main_scene,
-                       self._scene_ids[name], enabled)
+        self._id_call(name, lambda: self._scene_ids.get(name),
+                      lambda i: self._client.set_scene_item_enabled(self.main_scene, i, enabled))
 
     def _hide_all(self):
         for name in config.PLAYER_SCENES + [BORDE]:
@@ -302,8 +319,9 @@ class ObsLink:
         if preset is None:
             return
         (x, y), (sx, sy) = preset["pos"], preset["scale"]
-        self._soft(scene, self._client.set_scene_item_transform, self.main_scene, self._scene_ids[scene],
-                   {"positionX": x, "positionY": y, "scaleX": sx, "scaleY": sy})
+        transform = {"positionX": x, "positionY": y, "scaleX": sx, "scaleY": sy}
+        self._id_call(scene, lambda: self._scene_ids.get(scene),
+                      lambda i: self._client.set_scene_item_transform(self.main_scene, i, transform))
 
     def _provided_players(self) -> dict[str, PlayerConfig]:
         try:
@@ -316,14 +334,17 @@ class ObsLink:
         player = self._provided_players().get(scene)
         use = effective_use(player) if player is not None else None
         if use is None:
-            self._emit(tr("{scene} no tiene cámara ni foto configuradas", scene=scene))
-        inner = self._inner.get(scene, {})
+            if scene not in self._warned_mode:
+                self._warned_mode.add(scene)
+                self._emit(tr("{scene} no tiene cámara ni foto configuradas", scene=scene))
+        else:
+            self._warned_mode.discard(scene)
         chosen = {"camera": "Camara", "photo": "Foto"}.get(use)
         order = ([chosen] if chosen else []) + [k for k in ("Camara", "Foto") if k != chosen]
         for kind in order:
             name = source_name(kind, scene)
-            if name in inner:
-                self._soft(name, self._client.set_scene_item_enabled, scene, inner[name], kind == chosen)
+            self._id_call(name, lambda: self._inner.get(scene, {}).get(name),
+                          lambda i: self._client.set_scene_item_enabled(scene, i, kind == chosen))
 
     def _point_filters(self, scene: str):
         for name in config.HUD_FILTERS.values():
@@ -384,9 +405,14 @@ class ObsLink:
 
     def retrigger(self, scene: str, abilities: int) -> None:
         """Las habilidades del jugador al aire cambiaron: activa solo el filtro de esa cantidad
-        (los filtros ya apuntan a `scene`). No lanza nunca."""
+        (los filtros ya apuntan a `scene`). No lanza nunca ni espera a una reconexión en curso."""
+        self._last_abilities = abilities           # sin lock: así una reconexión reaplica con esta cantidad
+        if self._has_pending and self.pending_scene == scene:
+            self._pending_abilities = abilities
+        if not self.connected or scene != self._last_scene:   # sin lock: no esperar a la reconexión
+            return
         with self._lock:
-            if not self.connected or self._client is None:
+            if not self.connected or self._client is None or scene != self._last_scene:
                 return
             try:
                 self._enable_filter(abilities)
