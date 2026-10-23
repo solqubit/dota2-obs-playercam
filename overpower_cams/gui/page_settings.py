@@ -9,8 +9,9 @@ from __future__ import annotations
 from dataclasses import replace
 from pathlib import Path
 
+from PySide6.QtGui import QIntValidator
 from PySide6.QtWidgets import (QComboBox, QFileDialog, QFormLayout, QHBoxLayout,
-                               QLabel, QLineEdit, QMessageBox, QPushButton, QScrollArea, QSizePolicy, QSpinBox,
+                               QLabel, QLineEdit, QMessageBox, QPushButton, QScrollArea, QSizePolicy,
                                QVBoxLayout, QWidget)
 
 from .. import config, paths
@@ -23,6 +24,24 @@ from .widgets import card, detail_label, not_dota_msg, page_header
 
 COMBO_MIN_WIDTH = 240
 BODY_MAX_WIDTH = 880   # en ventanas anchas, los campos no se estiran de más
+
+
+class PortEdit(QLineEdit):
+    """Puerto (1–65535) como campo de texto, alineado igual que los demás campos."""
+
+    def __init__(self):
+        super().__init__()
+        self.setValidator(QIntValidator(1, 65535, self))
+
+    def value(self) -> int:
+        try:
+            n = int(self.text())
+        except ValueError:
+            return config.DEFAULT_OBS_PORT
+        return n if 1 <= n <= 65535 else config.DEFAULT_OBS_PORT
+
+    def setValue(self, n: int) -> None:
+        self.setText(str(n))
 
 
 def _row(label: str, detail: str = "") -> tuple[QWidget, QVBoxLayout]:
@@ -83,10 +102,9 @@ class SettingsPage(QWidget):
         self.host_edit.setPlaceholderText(config.OBS_HOST)
         form.addRow(_row(tr("Dirección de OBS"), tr("Normalmente {host} (esta misma PC)",
                                                     host=config.OBS_HOST))[0], self.host_edit)
-        self.port_spin = QSpinBox()
-        self.port_spin.setRange(1, 65535)
+        self.port_edit = PortEdit()
         form.addRow(_row(tr("Puerto de OBS"), tr("Por defecto {port}", port=config.DEFAULT_OBS_PORT))[0],
-                    self.port_spin)
+                    self.port_edit)
         self.password_edit = QLineEdit()
         self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
         self.password_edit.setPlaceholderText(tr("Pega aquí la contraseña de OBS"))
@@ -162,7 +180,7 @@ class SettingsPage(QWidget):
         buttons.addWidget(self.save_button)
         root.addLayout(buttons)
 
-        for w in (self.port_spin, self.language_combo, self.team_combo, self.mode_combo):
+        for w in (self.port_edit, self.language_combo, self.team_combo, self.mode_combo):
             w.setMinimumWidth(COMBO_MIN_WIDTH)
             w.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
 
@@ -186,11 +204,11 @@ class SettingsPage(QWidget):
         if detected_dota is not None:
             self._detected = detected_dota
         self.host_edit.setText(settings.obs_host)
-        self.port_spin.setValue(settings.obs_port)
+        self.port_edit.setValue(settings.obs_port)
         self.password_edit.setText(settings.obs_password)
         self.main_scene_edit.setText(settings.main_scene)
-        self._dota_dir = settings.dota_dir
-        self._refresh_dota()
+        self._picked_dota = None           # carpeta elegida en esta página (None = no se tocó)
+        self.refresh_dota()
         self._refresh_portraits()
         current = settings.language or get_language()
         self.language_combo.setCurrentIndex(max(0, self.language_combo.findData(current)))
@@ -202,16 +220,23 @@ class SettingsPage(QWidget):
         """Ajustes nuevos (copia; el original no se toca)."""
         return replace(self._source,
                        obs_host=self.host_edit.text().strip() or config.OBS_HOST,
-                       obs_port=self.port_spin.value(),
+                       obs_port=self.port_edit.value(),
                        obs_password=self.password_edit.text().strip(),
                        main_scene=self.main_scene_edit.text().strip() or config.DEFAULT_MAIN_SCENE,
-                       dota_dir=self._dota_dir,
+                       dota_dir=self._dota_dir(),
                        language=self.language_combo.currentData(),
                        default_radiant_team=self.team_combo.currentData(),
                        default_mode=self.mode_combo.currentData())
 
+    def _dota_dir(self) -> str | None:
+        """La elegida en esta página o, si no, la actual de los ajustes (Revisión puede
+        cambiarla mientras la página tiene cambios sin guardar: no hay que pisarla)."""
+        return self._picked_dota if self._picked_dota is not None else self._source.dota_dir
+
     def is_dirty(self) -> bool:
-        return self.values() != self._loaded
+        if self._picked_dota is not None:
+            return True
+        return replace(self.values(), dota_dir=None) != replace(self._loaded, dota_dir=None)
 
     def set_intro(self, text: str | None) -> None:
         self.intro_label.setText(text or "")
@@ -231,9 +256,9 @@ class SettingsPage(QWidget):
                                        else QLineEdit.EchoMode.Password)
         self.show_button.setText(tr("Ocultar") if visible else tr("Mostrar"))
 
-    def _refresh_dota(self) -> None:
-        if self._dota_dir:
-            self.dota_label.setText(self._dota_dir)
+    def refresh_dota(self) -> None:
+        if self._dota_dir():
+            self.dota_label.setText(self._dota_dir())
             self._dota_detail.setText(tr("Elegida a mano"))
         elif self._detected:
             self.dota_label.setText(str(self._detected))
@@ -243,7 +268,7 @@ class SettingsPage(QWidget):
             self._dota_detail.setText(tr("Pulsa «Buscar…» y elige la carpeta «dota 2 beta»"))
 
     def _browse_dota(self) -> None:
-        start = self._dota_dir or (str(self._detected) if self._detected else "")
+        start = self._dota_dir() or (str(self._detected) if self._detected else "")
         d = QFileDialog.getExistingDirectory(self, tr("Elige la carpeta de Dota 2 («dota 2 beta»)"),
                                              start)
         if not d:
@@ -251,8 +276,8 @@ class SettingsPage(QWidget):
         if not paths.is_dota_dir(d):
             QMessageBox.warning(self, tr("Carpeta equivocada"), not_dota_msg())
             return
-        self._dota_dir = str(Path(d))
-        self._refresh_dota()
+        self._picked_dota = str(Path(d))
+        self.refresh_dota()
 
     def _refresh_portraits(self) -> None:
         n = len(self._portraits.as_dict())

@@ -205,6 +205,7 @@ def test_insignia_de_revision_cuenta_pendientes(qapp, appdata):
         pendientes = sum(r.status in ("warn", "error") for r in win.check_results)
         assert pendientes > 0
         assert win.checks_badge.text() == str(pendientes) and not win.checks_badge.isHidden()
+        assert win.checks_badge.height() == 18 and win.checks_badge.width() >= 18   # pastilla redonda
         win._render_checks([])
         assert win.checks_badge.isHidden()
     finally:
@@ -281,7 +282,7 @@ def test_pagina_de_ajustes(qapp, monkeypatch):
     assert page.main_scene_edit.text() == "Juego" and page.host_edit.text() == "127.0.0.1"
     assert [page.team_combo.itemText(i) for i in range(2)] == ["Liquid", "GG"]
     page.password_edit.setText("nueva")
-    page.port_spin.setValue(4456)
+    page.port_edit.setValue(4456)
     page.team_combo.setCurrentIndex(1)
     page.mode_combo.setCurrentIndex(page.mode_combo.findData("hidden"))
     page.main_scene_edit.setText("  Partida ")
@@ -298,6 +299,44 @@ def test_pagina_de_ajustes(qapp, monkeypatch):
     page.revert_button.click()                           # descarta lo no guardado
     assert page.values() == replace(s, language="es")
     page.close()
+
+
+def test_pagina_de_ajustes_no_pisa_la_carpeta_elegida_en_revision(qapp, tmp_path, monkeypatch):
+    s = Settings()
+    page = SettingsPage(s, PortraitModel({}))
+    page.port_edit.setValue(4460)                        # cambios sin guardar
+    assert page.is_dirty()
+    s.dota_dir = str(tmp_path / "elegida en Revisión")   # la ventana la cambia desde Revisión
+    assert page.values().dota_dir == s.dota_dir
+    page.refresh_dota()
+    assert page.dota_label.text() == s.dota_dir
+    dota = tmp_path / "dota 2 beta"
+    (dota / "game" / "dota").mkdir(parents=True)
+    monkeypatch.setattr("PySide6.QtWidgets.QFileDialog.getExistingDirectory",
+                        lambda *a, **k: str(dota))
+    page._browse_dota()                                  # elegida en la página: esa manda
+    assert page.values().dota_dir == str(dota)
+    page.close()
+
+
+def test_carpeta_de_revision_sobrevive_a_ajustes_sin_guardar(qapp, appdata, tmp_path, monkeypatch):
+    dota = tmp_path / "dota 2 beta"
+    (dota / "game" / "dota").mkdir(parents=True)
+    monkeypatch.setattr("PySide6.QtWidgets.QFileDialog.getExistingDirectory",
+                        lambda *a, **k: str(dota))
+    parts, win = _armar(_obs_cerrado())
+    try:
+        win.show_page("settings")
+        win.settings_page.port_edit.setValue(4460)      # sin guardar
+        win.show_page("checks")
+        win._browse_dota()                               # elegida desde Revisión
+        win.show_page("settings")
+        assert win.settings_page.dota_label.text() == str(dota)
+        win.settings_page.save_button.click()
+        assert parts.storage.load_settings().dota_dir == str(dota)
+        assert parts.storage.load_settings().obs_port == 4460
+    finally:
+        win.close()
 
 
 def test_ajustes_guarda_main_scene_desde_la_pagina(qapp, appdata):
@@ -369,6 +408,12 @@ def test_post_de_gsi_enciende_camara_y_se_ve_en_la_ventana(qapp, appdata):
         assert win.on_air_label.text() == "Al aire: Ceb · 1 Offlaner · Test2 · 4 habilidades"
         assert "datos llegando" in win.dota_label.text() and win.dota_detail.text() == "hace 0 s"
         assert "en juego" in win.game_label.text() and win.game_detail.text() == "12:34"
+        fin = gsi_payload(None, state="DOTA_GAMERULES_STATE_POST_GAME")
+        fin["map"]["clock_time"] = 2400
+        assert _post(parts.gsi.server_port, fin) == 200
+        win.tick()
+        assert "fuera de partida" in win.game_label.text() and win.game_detail.text() == "—"
+        assert _post(parts.gsi.server_port, payload) == 200
         assert any("→ 1 Offlaner" in l for l in win.event_lines())
         # "Ocultar todo" apaga la cámara y los acompañantes
         win.hide_button.click()
@@ -476,7 +521,7 @@ def test_ventana_en_ingles(qapp, appdata):
     parts, win = _armar(_obs_cerrado())
     try:
         assert win.windowTitle() == "OverPower · Dota Player Cams" == config.app_name()
-        assert [b.text().split(" ", 1)[1] for b in win.nav_buttons.values()] == [
+        assert [b.text() for b in win.nav_buttons.values()] == [
             "Players", "Checks", "OBS scene", "Events", "Settings"]
         assert win.recheck_button.text() == "↻ Re-check everything"
         assert (win.auto_button.text(), win.hide_button.text()) == ("Automatic", "Hide all")

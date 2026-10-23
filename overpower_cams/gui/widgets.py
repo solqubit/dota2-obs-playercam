@@ -1,14 +1,15 @@
 """Piezas chicas de la ventana: tema (oscuro/claro, boceto D v2), puntos de estado,
 encabezados de página, tarjetas, selector segmentado y filas de revisión."""
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont, QFontMetrics, QPalette
+from PySide6.QtCore import QPointF, QRectF, QSize, Qt
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPainterPath, QPalette, QPen
 from PySide6.QtWidgets import (QButtonGroup, QFrame, QHBoxLayout, QLabel, QPushButton,
-                               QVBoxLayout, QWidget)
+                               QSizePolicy, QVBoxLayout, QWidget)
 
 from ..i18n import tr
 
+# Colores de estado (oscuro, del boceto) y su versión para fondo claro (más contraste).
 COLORS = {"ok": "#3fb950", "warn": "#d29922", "error": "#f85149", "idle": "#8a8a8a"}
-ICONS = {"ok": "✔", "warn": "!", "error": "✖"}
+COLORS_LIGHT = {"ok": "#1a7f37", "warn": "#9a6700", "error": "#cf222e", "idle": "#6e7781"}
 ZWSP = "​"   # espacio de ancho cero: permite cortar la línea sin que se vea
 
 # Colores del boceto D v2 (oscuro) y su variante clara.
@@ -41,6 +42,10 @@ SEG_PADDING_X = 14   # px a cada lado del texto en los botones del selector
 def theme_name(palette: QPalette) -> str:
     """"dark" o "light", según el tema del sistema."""
     return "dark" if palette.color(QPalette.ColorRole.Window).lightness() < 128 else "light"
+
+
+def status_colors(palette: QPalette) -> dict[str, str]:
+    return COLORS if theme_name(palette) == "dark" else COLORS_LIGHT
 
 
 def muted_color(palette: QPalette) -> str:
@@ -82,8 +87,8 @@ QPushButton#navItem:hover {{ background: {hover}; color: {text}; }}
 QPushButton#navItem:checked {{ background: {accent_soft}; color: {nav_active}; font-weight: 600;
     border-left: 3px solid {accent}; border-top-left-radius: 3px; border-bottom-left-radius: 3px;
     padding-left: 9px; }}
-QLabel#badge {{ background: {warn}; color: #000000; border-radius: 8px; padding: 0px 6px;
-    font-size: 10px; font-weight: bold; min-height: 16px; }}
+QLabel#badge {{ background: {warn}; color: #000000; border-radius: 9px; padding: 0px 5px;
+    font-size: 10px; font-weight: bold; }}
 
 QLabel#statusTitle {{ font-size: 13px; font-weight: bold; }}
 QLabel#statusDetail {{ font-size: 11px; color: {muted}; }}
@@ -93,11 +98,10 @@ QFrame#onAir[live="true"] {{ background: {onair_bg}; border: 1px solid {onair_bo
 QFrame#onAir[live="true"] QLabel {{ color: {onair_text}; }}
 QFrame#onAir[live="true"] QLabel#onAirDot {{ color: {onair_border}; }}
 
-QLineEdit, QSpinBox, QComboBox {{ background: {input}; color: {input_text};
+QLineEdit, QComboBox {{ background: {input}; color: {input_text};
     border: 1px solid {border}; border-radius: 7px; padding: 5px 8px; min-height: 18px;
     selection-background-color: {accent}; selection-color: #ffffff; }}
-QLineEdit:focus, QSpinBox:focus, QComboBox:focus {{ border: 1px solid {accent}; }}
-QSpinBox::up-button, QSpinBox::down-button {{ width: 0px; border: none; }}
+QLineEdit:focus, QComboBox:focus {{ border: 1px solid {accent}; }}
 QComboBox QAbstractItemView {{ background: {card}; color: {text}; border: 1px solid {border};
     selection-background-color: {accent}; selection-color: #ffffff; outline: none; }}
 
@@ -125,9 +129,9 @@ QFrame#checkRow {{ border: none; border-bottom: 1px solid {border}; }}
 """.format(**c)
 
 
-def dot_html(name: str, state: str, text: str) -> str:
-    """'OBS ● conectado' con el punto del color del estado."""
-    return (f'{name} <span style="color:{COLORS.get(state, COLORS["idle"])}">●</span> '
+def dot_html(name: str, state: str, text: str, colors: dict[str, str] = COLORS) -> str:
+    """'OBS ● conectado' con el punto del color del estado (● no es emoji: respeta el color)."""
+    return (f'{name} <span style="color:{colors.get(state, colors["idle"])}">●</span> '
             f'{text}')
 
 
@@ -196,6 +200,79 @@ def repolish(w: QWidget) -> None:
         x.style().polish(x)
 
 
+class StatusIcon(QWidget):
+    """Círculo del color del estado con ✓ / ! / ✕ dibujados a mano (no depende de fuentes:
+    un emoji de color haría que error y ok se vean iguales)."""
+    SIZE = 18
+
+    def __init__(self, status: str, palette: QPalette | None = None):
+        super().__init__()
+        self.status = status
+        self._colors = status_colors(palette if palette is not None else self.palette())
+        self.setFixedSize(self.SIZE, self.SIZE)
+
+    def color(self) -> QColor:
+        return QColor(self._colors.get(self.status, self._colors["idle"]))
+
+    def sizeHint(self) -> QSize:
+        return QSize(self.SIZE, self.SIZE)
+
+    def paintEvent(self, _event) -> None:
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        s = float(self.SIZE)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(self.color())
+        p.drawEllipse(QRectF(0.5, 0.5, s - 1, s - 1))
+        pen = QPen(QColor("#ffffff"), 2.0, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap,
+                   Qt.PenJoinStyle.RoundJoin)
+        p.setPen(pen)
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        if self.status == "ok":
+            path = QPainterPath(QPointF(s * 0.28, s * 0.52))
+            path.lineTo(QPointF(s * 0.44, s * 0.68))
+            path.lineTo(QPointF(s * 0.73, s * 0.35))
+            p.drawPath(path)
+        elif self.status == "error":
+            a, b = s * 0.33, s * 0.67
+            p.drawLine(QPointF(a, a), QPointF(b, b))
+            p.drawLine(QPointF(a, b), QPointF(b, a))
+        else:   # warn u otro: signo de exclamación
+            p.drawLine(QPointF(s / 2, s * 0.27), QPointF(s / 2, s * 0.56))
+            p.drawPoint(QPointF(s / 2, s * 0.73))
+        p.end()
+
+
+class ElidedLabel(QLabel):
+    """Una sola línea; si no entra, se corta con "…" y el texto entero queda en el tooltip."""
+
+    def __init__(self, text: str = ""):
+        super().__init__()
+        self._full = ""
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self.set_full_text(text)
+
+    def full_text(self) -> str:
+        return self._full
+
+    def set_full_text(self, text: str) -> None:
+        if text == self._full:
+            return
+        self._full = text
+        self.setToolTip(text)
+        self._elide()
+
+    def _elide(self) -> None:
+        shown = self.fontMetrics().elidedText(self._full, Qt.TextElideMode.ElideRight,
+                                              max(0, self.width()))
+        if shown != self.text():
+            self.setText(shown)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._elide()
+
+
 class Segmented(QWidget):
     """Selector de dos o más opciones exclusivas (botones pegados)."""
 
@@ -246,12 +323,8 @@ class CheckRow(QFrame):
         lay = QHBoxLayout(self)
         lay.setContentsMargins(2, 8, 2, 10)
         lay.setSpacing(10)
-        icon = QLabel(ICONS.get(result.status, "?"))
-        icon.setStyleSheet(f"color:{COLORS.get(result.status, COLORS['idle'])};"
-                           "font-weight:bold; font-size:14px;")
-        icon.setFixedWidth(18)
-        icon.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
-        lay.addWidget(icon)
+        self.icon = StatusIcon(result.status)
+        lay.addWidget(self.icon, 0, Qt.AlignmentFlag.AlignTop)
         texts = QVBoxLayout()
         texts.setSpacing(2)
         title = QLabel(result.title)

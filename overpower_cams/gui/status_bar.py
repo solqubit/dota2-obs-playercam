@@ -4,11 +4,11 @@ les pasa los datos y recibe los clicks."""
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from ..i18n import tr
 from ..players import PlayerConfig, TeamsConfig
-from .widgets import Segmented, detail_label, field_label, repolish
+from .widgets import ElidedLabel, Segmented, field_label, repolish
 
 
 def hero_display(hero: str | None) -> str:
@@ -130,9 +130,8 @@ class LiveBar(QFrame):
                                        on_mode)
         lay.addWidget(self.mode_selector)
         lay.addSpacing(18)
-        self.note = detail_label()
-        self.note.setWordWrap(False)   # una sola línea: si no entra, se corta (está en el tooltip)
-        self.note.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self.note = ElidedLabel()      # una línea: si no entra, "…" y el texto entero en el tooltip
+        self.note.setObjectName("detail")
         lay.addWidget(self.note, 1)
 
     def set_team_names(self, teams: TeamsConfig) -> None:
@@ -144,6 +143,4 @@ class LiveBar(QFrame):
         self.side_selector.set_value(radiant_team)
         self.mode_selector.set_value(mode)
         note = input_note(mode)
-        if self.note.text() != note:
-            self.note.setText(note)
-            self.note.setToolTip(note)
+        self.note.set_full_text(note)

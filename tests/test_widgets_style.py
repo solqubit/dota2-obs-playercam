@@ -51,3 +51,36 @@ def test_boton_elegido_reserva_el_ancho_de_la_negrita(qapp):
         negrita = QFont(b.font())
         negrita.setBold(True)
         assert b.minimumWidth() >= QFontMetrics(negrita).horizontalAdvance(b.text()) + 28
+
+
+def test_icono_de_estado_tiene_un_color_distinto_por_estado(qapp):
+    from overpower_cams.gui.widgets import StatusIcon
+    for fondo in ("#1e1e1e", "#f0f0f0"):
+        colores = {s: StatusIcon(s, _palette(fondo)).color().name() for s in ("ok", "warn", "error")}
+        assert len(set(colores.values())) == 3, fondo
+        for c in colores.values():
+            assert _contraste(QColor(c), QColor(fondo)) >= 2.5, (fondo, c)
+    assert StatusIcon("ok", _palette("#1e1e1e")).color().name() == "#3fb950"
+    assert StatusIcon("error", _palette("#1e1e1e")).color().name() == "#f85149"
+
+
+def test_icono_de_estado_se_dibuja_sin_texto(qapp):
+    from PySide6.QtGui import QImage
+    from overpower_cams.gui.widgets import StatusIcon
+    icon = StatusIcon("error", _palette("#1e1e1e"))
+    img = icon.grab().toImage().convertToFormat(QImage.Format.Format_ARGB32)
+    centro_izq = img.pixelColor(3, img.height() // 2)          # el círculo, en rojo
+    assert abs(centro_izq.red() - 0xf8) < 40 and centro_izq.green() < 120
+
+
+def test_texto_largo_se_corta_con_puntos_suspensivos(qapp):
+    from overpower_cams.gui.widgets import ElidedLabel
+    lbl = ElidedLabel()
+    lbl.set_full_text("una frase bastante larga que no entra en el ancho disponible")
+    lbl.resize(120, 20)
+    lbl.show()
+    qapp.processEvents()
+    assert lbl.text().endswith("…") and lbl.toolTip() == lbl.full_text()
+    lbl.resize(2000, 20)
+    qapp.processEvents()
+    assert lbl.text() == lbl.full_text()

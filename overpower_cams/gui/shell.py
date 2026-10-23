@@ -32,7 +32,7 @@ from .checks_mixin import ChecksMixin, pending_count
 from .page_settings import SettingsPage
 from .sidebar import PAGE_KEYS, Sidebar, nav_title
 from .status_bar import LiveBar, StatusBar, ago_text, clock_text, on_air_text, team_names
-from .widgets import app_style, dot_html, page_layout
+from .widgets import app_style, dot_html, page_layout, status_colors
 
 MAX_EVENTS = 50
 AUTO_CHECK_MIN_S = 5.0   # al volver la ventana al frente, no revisar más seguido que esto
@@ -201,8 +201,11 @@ class Shell(ChecksMixin, QMainWindow):
             self.stack.setCurrentWidget(widget)
 
     def show_page(self, key: str) -> None:
-        if key == "settings" and not self.settings_page.is_dirty():
-            self._reload_settings_page()
+        if key == "settings":
+            if self.settings_page.is_dirty():
+                self.settings_page.refresh_dota()   # la carpeta pudo cambiar desde Revisión
+            else:
+                self._reload_settings_page()
         self.stack.setCurrentWidget(self.pages[key])
         self.nav_buttons[key].setChecked(True)
 
@@ -300,16 +303,17 @@ class Shell(ChecksMixin, QMainWindow):
     def _refresh_bar(self, now: float, st=None) -> None:
         st = st or self.engine.status()
         bar = self.status_bar_widget
-        bar.obs.set(dot_html("OBS", *self._obs_state()), f"{self.obs.host}:{self.obs.port}")
+        colors = status_colors(self.palette())
+        bar.obs.set(dot_html("OBS", *self._obs_state(), colors), f"{self.obs.host}:{self.obs.port}")
         last = self.gsi.last_post_t
         fresh = last is not None and now - last <= config.GSI_STALE_S
         bar.dota.set(dot_html("Dota", *(("ok", tr("datos llegando")) if fresh
-                                        else ("warn", tr("sin datos")))),
+                                        else ("warn", tr("sin datos"))), colors),
                      ago_text(now - last) if last is not None else tr("nunca"))
         in_game = fresh and st.game_state in config.LIVE_STATES
         bar.game.set(dot_html(tr("Partida"), *(("ok", tr("en juego")) if in_game
-                                               else ("warn", tr("fuera de partida")))),
-                     clock_text(st.clock_time if fresh else None))
+                                               else ("warn", tr("fuera de partida"))), colors),
+                     clock_text(st.clock_time if in_game else None))   # reloj solo en juego
 
     def _refresh_live(self, st) -> None:
         self.live_bar.set_values(self._radiant_team, self._mode)
