@@ -235,7 +235,7 @@ class ObsLink:
             return False
         return True
 
-    def apply(self, cam: str | None, reason: str) -> None:
+    def apply(self, cam: str | None, reason: str, abilities: int = 4) -> None:
         """Enciende `cam` (None = ocultar todo). Cámara nueva antes de apagar la anterior;
         los acompañantes solo cambian al entrar/salir de "sin cámara". No lanza nunca y
         no espera a una reconexión en curso: si no hay conexión, o OBS falla, se marca
@@ -277,6 +277,9 @@ class ObsLink:
             except Exception as e:  # noqa: BLE001
                 self._remember(cam)
                 self._fail(e)
+
+    def retrigger(self, scene: str, abilities: int) -> None:
+        """Reactiva el filtro de habilidades (lo implementa la Task 5): por ahora no hace nada."""
 
     def ensure_connected(self, current_camera: str | None) -> bool:
         """Si no hay conexión: reconecta, recarga los IDs y reaplica la última cámara pedida

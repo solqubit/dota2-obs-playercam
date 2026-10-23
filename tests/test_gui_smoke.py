@@ -245,10 +245,10 @@ def test_post_de_gsi_enciende_camara_y_se_ve_en_la_ventana(qapp, appdata):
         assert fake.is_enabled("CAM_EQ1_3") is True and fake.is_enabled("Borde") is True
         win.tick()
         qapp.processEvents()
-        assert "CAM_EQ1_3" in win.on_air_label.text()
+        assert "1 Offlaner" in win.on_air_label.text()
         assert "datos llegando" in win.dota_label.text()
         assert "en juego" in win.game_label.text()
-        assert any("→ CAM_EQ1_3" in l for l in win.event_lines())
+        assert any("→ 1 Offlaner" in l for l in win.event_lines())
         # "Ocultar todo" apaga la cámara y los acompañantes
         win.hide_button.click()
         win.wait_background(5)

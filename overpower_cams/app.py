@@ -29,6 +29,13 @@ _AUTO = object()
 _crash_shown = False   # el aviso de error inesperado se muestra una sola vez por sesión
 
 
+def _scene_to_v1_camera(scene):
+    """Puente temporal hasta la Task 5: el ObsLink de v1 solo conoce las cámaras CAM_EQx_y."""
+    if scene in config.PLAYER_SCENES:
+        return (config.CAMERAS_TEAM1 + config.CAMERAS_TEAM2)[config.PLAYER_SCENES.index(scene)]
+    return scene
+
+
 class ObsSink:
     """Destino de cámaras del motor: reenvía al ObsLink actual, que cambia si en Ajustes se
     cambia el puerto o la contraseña. Cambiar `obs` es una asignación atómica."""
@@ -36,10 +43,15 @@ class ObsSink:
     def __init__(self, obs: ObsLink | None = None):
         self.obs = obs
 
-    def apply(self, cam, reason) -> None:
+    def apply(self, scene, reason, abilities=4) -> None:
         obs = self.obs
         if obs is not None:
-            obs.apply(cam, reason)
+            obs.apply(_scene_to_v1_camera(scene), reason, abilities)
+
+    def retrigger(self, scene, abilities) -> None:
+        obs = self.obs
+        if obs is not None:
+            obs.retrigger(scene, abilities)
 
 
 def legacy_input_map() -> Path:

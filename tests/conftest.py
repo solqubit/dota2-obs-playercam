@@ -31,17 +31,24 @@ class FakeClock:
 
 
 class FakeSink:
-    """Destino falso de cámaras: registra cada `apply(cam, reason)`."""
+    """Destino falso de escenas: registra cada `apply` y cada `retrigger`."""
 
     def __init__(self):
-        self.calls: list[tuple[str | None, str]] = []
+        self.calls: list[tuple[str | None, str, int]] = []
+        self.retriggers: list[tuple[str, int]] = []
 
-    def apply(self, cam, reason):
-        self.calls.append((cam, reason))
+    def apply(self, scene, reason, abilities=4):
+        self.calls.append((scene, reason, abilities))
+
+    def retrigger(self, scene, abilities):
+        self.retriggers.append((scene, abilities))
 
 
-def gsi_payload(sel, state="DOTA_GAMERULES_STATE_GAME_IN_PROGRESS"):
+def gsi_payload(sel, state="DOTA_GAMERULES_STATE_GAME_IN_PROGRESS", abilities=None, radiant_team=1):
     """Payload GSI de 10 jugadores. `sel` = "r3" / "d1" / None (sin héroe seleccionado).
+
+    `abilities` (opcional) = dict escena -> cantidad; arma la sección `abilities` (solo de
+    los jugadores nombrados). Las escenas del equipo 1 van en Radiant si `radiant_team == 1`.
 
     Radiant = team2, player0..4; Dire = team3, player5..9; team_slot 0..4.
     Como en el GSI real, `selected_unit` y `name` van en la sección `hero`
@@ -60,7 +67,20 @@ def gsi_payload(sel, state="DOTA_GAMERULES_STATE_GAME_IN_PROGRESS"):
             "name": f"npc_dota_hero_test{i}",
             "selected_unit": selected,
         }
-    return {"map": {"game_state": state}, "player": player, "hero": hero}
+    payload = {"map": {"game_state": state}, "player": player, "hero": hero}
+    if abilities is not None:
+        from overpower_cams.config import PLAYER_SCENES_TEAM1, PLAYER_SCENES_TEAM2
+        radiant, dire = ((PLAYER_SCENES_TEAM1, PLAYER_SCENES_TEAM2) if radiant_team == 1
+                         else (PLAYER_SCENES_TEAM2, PLAYER_SCENES_TEAM1))
+        section = {"team2": {}, "team3": {}}
+        for i in range(10):
+            scene = (radiant if i < 5 else dire)[i % 5]
+            if scene in abilities:
+                section["team2" if i < 5 else "team3"][f"player{i}"] = {
+                    f"ability{n}": {"name": f"test_ability_{n}", "level": 1}
+                    for n in range(abilities[scene])}
+        payload["abilities"] = section
+    return payload
 
 
 # ---------------------------------------------------------------------------
