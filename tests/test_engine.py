@@ -363,3 +363,17 @@ def test_habilidades_seccion_basura_no_rompe(fx):
     p["abilities"] = {"team2": {"player0": "x", "player1": {"ability0": 3}}, "team3": 7}
     fx.engine.process(p)
     assert fx.sink.calls[-1] == ("1 Hard carry", "GSI", 4)
+
+
+def test_habilidades_con_la_forma_real_de_gsi(fx):
+    import json
+    muestra = json.loads((pathlib.Path(__file__).parent / "data" / "gsi_abilities_sample.json")
+                         .read_text(encoding="utf-8"))
+    p = gsi_payload("r1")
+    p["abilities"] = {eq: {pk: j["abilities"] for pk, j in jug.items()}
+                      for eq, jug in muestra.items()}
+    fx.engine.process(p)
+    assert fx.engine._abilities["team2.player0"] == 6    # Doom
+    assert fx.engine._abilities["team2.player1"] == 5    # Kez
+    assert fx.engine._abilities["team3.player9"] == 4    # Axe
+    assert fx.sink.calls[-1] == ("1 Hard carry", "GSI", 6)

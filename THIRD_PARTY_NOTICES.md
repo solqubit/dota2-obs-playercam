@@ -12,6 +12,7 @@ build (.exe) includes these libraries, each under its own license:
 | PySide6 / Shiboken6 (Qt for Python) | LGPL-3.0 (or GPL-2.0 / GPL-3.0) | https://www.qt.io/qt-for-python |
 | Qt 6 (bundled with PySide6) | LGPL-3.0 | https://www.qt.io |
 | Python | PSF License | https://www.python.org |
+| OpenDota dotaconstants (data: list of innate passive abilities) | MIT, Copyright (c) 2017 The OpenDota Project | https://github.com/odota/dotaconstants |
 
 The executable is built with PyInstaller. PyInstaller is GPL-2.0 with a bootloader
 exception, which allows distributing packaged programs under any license.

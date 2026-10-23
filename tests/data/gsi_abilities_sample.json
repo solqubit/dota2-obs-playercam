@@ -1,0 +1,569 @@
+{
+ "team2": {
+  "player0": {
+   "hero": "npc_dota_hero_doom_bringer",
+   "abilities": {
+    "ability0": {
+     "name": "doom_bringer_devour",
+     "level": 4,
+     "can_cast": true,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 0,
+     "max_cooldown": 0,
+     "ultimate": false,
+     "charges": 1,
+     "max_charges": 2,
+     "charge_cooldown": 26
+    },
+    "ability1": {
+     "name": "doom_bringer_scorched_earth",
+     "level": 4,
+     "can_cast": false,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 9,
+     "max_cooldown": 36,
+     "ultimate": false
+    },
+    "ability2": {
+     "name": "doom_bringer_infernal_blade",
+     "level": 4,
+     "can_cast": true,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 0,
+     "max_cooldown": 5,
+     "ultimate": false
+    },
+    "ability3": {
+     "name": "frogmen_congregation_of_the_deep",
+     "level": 2,
+     "can_cast": true,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 0,
+     "max_cooldown": 21,
+     "ultimate": false
+    },
+    "ability4": {
+     "name": "frogmen_riverborn_aura",
+     "level": 2,
+     "can_cast": false,
+     "passive": true,
+     "ability_active": true,
+     "cooldown": 0,
+     "max_cooldown": 0,
+     "ultimate": false
+    },
+    "ability5": {
+     "name": "doom_bringer_doom",
+     "level": 3,
+     "can_cast": false,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 84,
+     "max_cooldown": 111,
+     "ultimate": true
+    }
+   }
+  },
+  "player1": {
+   "hero": "npc_dota_hero_kez",
+   "abilities": {
+    "ability0": {
+     "name": "kez_falcon_rush",
+     "level": 4,
+     "can_cast": true,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 0,
+     "max_cooldown": 13,
+     "ultimate": false
+    },
+    "ability1": {
+     "name": "kez_talon_toss",
+     "level": 4,
+     "can_cast": true,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 0,
+     "max_cooldown": 8,
+     "ultimate": false
+    },
+    "ability2": {
+     "name": "kez_shodo_sai",
+     "level": 4,
+     "can_cast": true,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 0,
+     "max_cooldown": 7,
+     "ultimate": false
+    },
+    "ability3": {
+     "name": "kez_switch_weapons",
+     "level": 1,
+     "can_cast": false,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 1,
+     "max_cooldown": 2,
+     "ultimate": false
+    },
+    "ability4": {
+     "name": "kez_ravens_veil",
+     "level": 3,
+     "can_cast": true,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 0,
+     "max_cooldown": 31,
+     "ultimate": true
+    }
+   }
+  },
+  "player2": {
+   "hero": "npc_dota_hero_lion",
+   "abilities": {
+    "ability0": {
+     "name": "lion_impale",
+     "level": 4,
+     "can_cast": true,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 0,
+     "max_cooldown": 12,
+     "ultimate": false
+    },
+    "ability1": {
+     "name": "lion_voodoo",
+     "level": 4,
+     "can_cast": true,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 0,
+     "max_cooldown": 13,
+     "ultimate": false
+    },
+    "ability2": {
+     "name": "lion_mana_drain",
+     "level": 4,
+     "can_cast": true,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 0,
+     "max_cooldown": 7,
+     "ultimate": false
+    },
+    "ability3": {
+     "name": "lion_to_hell_and_back",
+     "level": 1,
+     "can_cast": false,
+     "passive": true,
+     "ability_active": true,
+     "cooldown": 0,
+     "max_cooldown": 0,
+     "ultimate": false
+    },
+    "ability4": {
+     "name": "lion_finger_of_death",
+     "level": 3,
+     "can_cast": false,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 6,
+     "max_cooldown": 31,
+     "ultimate": true
+    }
+   }
+  },
+  "player3": {
+   "hero": "npc_dota_hero_bounty_hunter",
+   "abilities": {
+    "ability0": {
+     "name": "bounty_hunter_shuriken_toss",
+     "level": 4,
+     "can_cast": true,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 0,
+     "max_cooldown": 6,
+     "ultimate": false
+    },
+    "ability1": {
+     "name": "bounty_hunter_jinada",
+     "level": 4,
+     "can_cast": true,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 0,
+     "max_cooldown": 4,
+     "ultimate": false
+    },
+    "ability2": {
+     "name": "bounty_hunter_wind_walk",
+     "level": 4,
+     "can_cast": true,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 0,
+     "max_cooldown": 11,
+     "ultimate": false
+    },
+    "ability3": {
+     "name": "bounty_hunter_wind_walk_ally",
+     "level": 1,
+     "can_cast": false,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 2,
+     "max_cooldown": 11,
+     "ultimate": false
+    },
+    "ability4": {
+     "name": "bounty_hunter_big_game_hunter",
+     "level": 1,
+     "can_cast": false,
+     "passive": true,
+     "ability_active": true,
+     "cooldown": 0,
+     "max_cooldown": 0,
+     "ultimate": false
+    },
+    "ability5": {
+     "name": "bounty_hunter_track",
+     "level": 3,
+     "can_cast": false,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 4,
+     "max_cooldown": 5,
+     "ultimate": true
+    }
+   }
+  },
+  "player4": {
+   "hero": "npc_dota_hero_storm_spirit",
+   "abilities": {
+    "ability0": {
+     "name": "storm_spirit_static_remnant",
+     "level": 4,
+     "can_cast": false,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 3,
+     "max_cooldown": 4,
+     "ultimate": false
+    },
+    "ability1": {
+     "name": "storm_spirit_electric_vortex",
+     "level": 4,
+     "can_cast": true,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 0,
+     "max_cooldown": 11,
+     "ultimate": false
+    },
+    "ability2": {
+     "name": "storm_spirit_overload",
+     "level": 4,
+     "can_cast": false,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 27,
+     "max_cooldown": 31,
+     "ultimate": false
+    },
+    "ability3": {
+     "name": "storm_spirit_ball_lightning",
+     "level": 3,
+     "can_cast": true,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 0,
+     "max_cooldown": 0,
+     "ultimate": true
+    },
+    "ability4": {
+     "name": "storm_spirit_galvanized",
+     "level": 1,
+     "can_cast": false,
+     "passive": true,
+     "ability_active": true,
+     "cooldown": 0,
+     "max_cooldown": 0,
+     "ultimate": false
+    }
+   }
+  }
+ },
+ "team3": {
+  "player5": {
+   "hero": "npc_dota_hero_disruptor",
+   "abilities": {
+    "ability0": {
+     "name": "disruptor_thunder_strike",
+     "level": 4,
+     "can_cast": true,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 0,
+     "max_cooldown": 10,
+     "ultimate": false
+    },
+    "ability1": {
+     "name": "disruptor_glimpse",
+     "level": 4,
+     "can_cast": false,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 8,
+     "max_cooldown": 19,
+     "ultimate": false
+    },
+    "ability2": {
+     "name": "disruptor_kinetic_field",
+     "level": 4,
+     "can_cast": true,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 0,
+     "max_cooldown": 15,
+     "ultimate": false
+    },
+    "ability3": {
+     "name": "disruptor_electromagnetic_repulsion",
+     "level": 1,
+     "can_cast": false,
+     "passive": true,
+     "ability_active": true,
+     "cooldown": 5,
+     "max_cooldown": 6,
+     "ultimate": false
+    },
+    "ability4": {
+     "name": "disruptor_static_storm",
+     "level": 3,
+     "can_cast": false,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 47,
+     "max_cooldown": 71,
+     "ultimate": true
+    }
+   }
+  },
+  "player6": {
+   "hero": "npc_dota_hero_winter_wyvern",
+   "abilities": {
+    "ability0": {
+     "name": "winter_wyvern_arctic_burn",
+     "level": 5,
+     "can_cast": true,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 0,
+     "max_cooldown": 0,
+     "ultimate": false
+    },
+    "ability1": {
+     "name": "winter_wyvern_splinter_blast",
+     "level": 4,
+     "can_cast": true,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 0,
+     "max_cooldown": 7,
+     "ultimate": false
+    },
+    "ability2": {
+     "name": "winter_wyvern_cold_embrace",
+     "level": 4,
+     "can_cast": false,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 14,
+     "max_cooldown": 16,
+     "ultimate": false
+    },
+    "ability3": {
+     "name": "winter_wyvern_winters_curse",
+     "level": 3,
+     "can_cast": false,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 65,
+     "max_cooldown": 81,
+     "ultimate": true
+    }
+   }
+  },
+  "player7": {
+   "hero": "npc_dota_hero_rubick",
+   "abilities": {
+    "ability0": {
+     "name": "rubick_telekinesis",
+     "level": 4,
+     "can_cast": false,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 7,
+     "max_cooldown": 12,
+     "ultimate": false
+    },
+    "ability1": {
+     "name": "rubick_fade_bolt",
+     "level": 4,
+     "can_cast": false,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 6,
+     "max_cooldown": 7,
+     "ultimate": false
+    },
+    "ability2": {
+     "name": "rubick_arcane_supremacy",
+     "level": 4,
+     "can_cast": false,
+     "passive": true,
+     "ability_active": true,
+     "cooldown": 0,
+     "max_cooldown": 0,
+     "ultimate": false
+    },
+    "ability3": {
+     "name": "storm_spirit_ball_lightning",
+     "level": 3,
+     "can_cast": true,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 0,
+     "max_cooldown": 0,
+     "ultimate": true
+    },
+    "ability4": {
+     "name": "frogmen_congregation_of_the_deep",
+     "level": 2,
+     "can_cast": true,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 0,
+     "max_cooldown": 15,
+     "ultimate": false
+    },
+    "ability5": {
+     "name": "rubick_spell_steal",
+     "level": 3,
+     "can_cast": true,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 0,
+     "max_cooldown": 5,
+     "ultimate": true
+    }
+   }
+  },
+  "player8": {
+   "hero": "npc_dota_hero_antimage",
+   "abilities": {
+    "ability0": {
+     "name": "antimage_mana_break",
+     "level": 4,
+     "can_cast": false,
+     "passive": true,
+     "ability_active": true,
+     "cooldown": 0,
+     "max_cooldown": 0,
+     "ultimate": false
+    },
+    "ability1": {
+     "name": "antimage_blink",
+     "level": 4,
+     "can_cast": false,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 1,
+     "max_cooldown": 7,
+     "ultimate": false
+    },
+    "ability2": {
+     "name": "antimage_counterspell",
+     "level": 4,
+     "can_cast": true,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 0,
+     "max_cooldown": 4,
+     "ultimate": false
+    },
+    "ability3": {
+     "name": "antimage_persectur",
+     "level": 1,
+     "can_cast": false,
+     "passive": true,
+     "ability_active": true,
+     "cooldown": 0,
+     "max_cooldown": 0,
+     "ultimate": false
+    },
+    "ability4": {
+     "name": "antimage_mana_void",
+     "level": 3,
+     "can_cast": true,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 0,
+     "max_cooldown": 21,
+     "ultimate": true
+    }
+   }
+  },
+  "player9": {
+   "hero": "npc_dota_hero_axe",
+   "abilities": {
+    "ability0": {
+     "name": "axe_berserkers_call",
+     "level": 4,
+     "can_cast": false,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 5,
+     "max_cooldown": 13,
+     "ultimate": false
+    },
+    "ability1": {
+     "name": "axe_battle_hunger",
+     "level": 4,
+     "can_cast": true,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 0,
+     "max_cooldown": 6,
+     "ultimate": false
+    },
+    "ability2": {
+     "name": "axe_counter_helix",
+     "level": 4,
+     "can_cast": false,
+     "passive": true,
+     "ability_active": true,
+     "cooldown": 1,
+     "max_cooldown": 1,
+     "ultimate": false
+    },
+    "ability3": {
+     "name": "axe_culling_blade",
+     "level": 3,
+     "can_cast": true,
+     "passive": false,
+     "ability_active": true,
+     "cooldown": 0,
+     "max_cooldown": 71,
+     "ultimate": true
+    }
+   }
+  }
+ }
+}
