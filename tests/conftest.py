@@ -10,6 +10,45 @@ import pytest  # noqa: E402
 from overpower_cams import i18n  # noqa: E402
 
 
+_qapp_instance = None
+
+
+@pytest.fixture(scope="session")
+def qapp():
+    """Una QApplication para toda la sesión, retenida hasta el cierre de Python.
+
+    Qt exige una sola aplicación. Mantener además una referencia de módulo evita
+    que pytest libere su último dueño antes de destruir los widgets de PySide.
+    El mismo patrón de vida lo utiliza la fixture qapp de pytest-qt.
+    """
+    from PySide6.QtWidgets import QApplication
+
+    global _qapp_instance
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    if _qapp_instance is None:
+        _qapp_instance = QApplication.instance() or QApplication(["playercam-tests"])
+    return _qapp_instance
+
+
+@pytest.fixture(autouse=True)
+def cleanup_qt_widgets(request):
+    """Destruye los widgets de cada prueba mientras Qt y Python siguen vivos."""
+    if "qapp" not in request.fixturenames:
+        yield
+        return
+    application = request.getfixturevalue("qapp")
+    yield
+    from PySide6.QtCore import QCoreApplication, QEvent
+
+    for widget in application.topLevelWidgets():
+        widget.close()
+        if hasattr(widget, "wait_background"):
+            widget.wait_background()
+        widget.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    application.processEvents()
+
+
 @pytest.fixture(autouse=True)
 def idioma_espanol():
     """Los tests comparan textos en español: cada test arranca en "es" (y se restaura al final),

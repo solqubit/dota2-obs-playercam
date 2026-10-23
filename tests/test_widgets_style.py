@@ -4,16 +4,9 @@ import os
 
 os.environ["QT_QPA_PLATFORM"] = "offscreen"   # antes de crear QApplication
 
-import pytest
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QPalette  # noqa: E402
-from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from overpower_cams.gui.widgets import Segmented, app_style, muted_color
-
-
-@pytest.fixture
-def qapp():
-    return QApplication.instance() or QApplication([])
 
 
 def _palette(window: str) -> QPalette:

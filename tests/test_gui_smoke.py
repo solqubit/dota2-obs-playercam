@@ -11,7 +11,7 @@ from dataclasses import replace  # noqa: E402
 from pathlib import Path  # noqa: E402
 
 import pytest  # noqa: E402
-from PySide6.QtWidgets import QApplication, QLabel, QMessageBox  # noqa: E402
+from PySide6.QtWidgets import QLabel, QMessageBox  # noqa: E402
 
 from overpower_cams import app, config, i18n, paths  # noqa: E402
 from overpower_cams.dota_keys import parse_player_keys  # noqa: E402
@@ -34,11 +34,6 @@ class FakeListener:
 
     def stop(self):
         pass
-
-
-@pytest.fixture
-def qapp():
-    return QApplication.instance() or QApplication([])
 
 
 @pytest.fixture
