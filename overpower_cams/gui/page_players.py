@@ -188,44 +188,62 @@ class PlayersPage(QWidget):
             edit.setText(value)
             edit.setCursorPosition(0)
 
-    def _save_players(self) -> bool:
+    def _save_player(self, scene: str, **changes) -> bool:
+        """Guarda el jugador con `changes`. Lo que hay en memoria cambia SOLO si se guardó: si
+        falla, sigue lo último guardado (y el campo vuelve a mostrarlo), así reintentar la misma
+        edición vuelve a guardar."""
+        new = PlayerConfig(**{**vars(self._players.get(scene, PlayerConfig())), **changes})
+        players = {**self._players, scene: new}
         try:
-            self._storage.save_players(self._players)
-            return True
+            self._storage.save_players(players)
         except OSError as e:
             self._post("[ERROR] " + tr("no pude guardar los jugadores: {error}", error=e))
             return False
+        self._players = players
+        return True
+
+    @staticmethod
+    def _restore(edit: QLineEdit, value: str) -> None:
+        edit.setText(value)
+        edit.setCursorPosition(0)
 
     def _team_edited(self, team: int) -> None:
-        text = self.team_edits[team].text().strip()
+        edit = self.team_edits[team]
+        text = edit.text().strip()
         attr = f"team{team}"
         if text == getattr(self._teams, attr):
             return
-        setattr(self._teams, attr, text)
+        teams = TeamsConfig(**{**vars(self._teams), attr: text})
         try:
-            self._storage.save_teams(self._teams)
+            self._storage.save_teams(teams)
         except OSError as e:
             self._post("[ERROR] " + tr("no pude guardar los jugadores: {error}", error=e))
+            self._restore(edit, getattr(self._teams, attr))
             return
+        self._teams = teams
         self._on_teams_changed()
 
     def _field_edited(self, scene: str, field: str) -> None:
-        text = self.rows[scene].edit(field).text().strip()
-        p = self._players.setdefault(scene, PlayerConfig())
-        if text == getattr(p, _attr(field)):
+        edit = self.rows[scene].edit(field)
+        text = edit.text().strip()
+        saved = getattr(self._players.get(scene, PlayerConfig()), _attr(field))
+        if text == saved:
             return
-        setattr(p, _attr(field), text)
-        if self._save_players():
-            self._push(scene, field, text, warn=True)
+        if not self._save_player(scene, **{_attr(field): text}):
+            self._restore(edit, saved)
+            return
+        self._push(scene, field, text, warn=True)
 
     def _use_picked(self, scene: str, use: str) -> None:
-        p = self._players.setdefault(scene, PlayerConfig())
-        if use == p.use:
+        saved = self._players.get(scene, PlayerConfig()).use
+        if use == saved:
             return
-        p.use = use
-        if self._save_players():
-            obs = self._get_obs()
-            self._enqueue(lambda: obs.refresh_player_mode(scene), None)   # solo si está al aire
+        if not self._save_player(scene, use=use):
+            self.rows[scene].use_selector.set_value(saved if saved in ("camera", "photo") else "camera")
+            return
+        obs = self._get_obs()
+
+        self._enqueue(lambda: obs.refresh_player_mode(scene), None)   # solo si está al aire
 
     # ------------------------------------------------------------------ OBS
     def _push(self, scene: str, field: str, value: str, *, warn: bool) -> None:

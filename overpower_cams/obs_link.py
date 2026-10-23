@@ -36,6 +36,11 @@ class SceneReport:
     # n habilidades -> {"pos": (x, y), "scale": (sx, sy)} leído del filtro, o None si falta
     filters: dict[int, dict | None] = field(default_factory=lambda: {n: None for n in config.HUD_FILTERS})
     borde: bool = True
+    # n habilidades -> tipo del filtro H (filterKind; None si falta). OBS conserva los filtros de un
+    # plugin que no está instalado, con su nombre y ajustes: por eso se mira también `move_plugin`.
+    filter_kinds: dict[int, str | None] = field(default_factory=lambda: {n: None for n in config.HUD_FILTERS})
+    # ¿OBS tiene cargado Move Source (GetSourceFilterKindList)? None = OBS no informa la lista
+    move_plugin: bool | None = None
 
 
 def clamp_abilities(n: int | None) -> int:
@@ -172,8 +177,8 @@ class ObsLink:
                         found.setdefault(sub["sourceName"], (it["sourceName"], sub["sceneItemId"]))
             return found
 
-    def _read_presets(self) -> dict[int, dict | None]:
-        """Posición y escala de los filtros H 4/5/6 (None si el filtro falta)."""
+    def _hud_filters(self) -> dict[int, dict | None]:
+        """Los filtros H 4/5/6 de la escena principal tal como los da OBS (None si falta)."""
         try:
             filters = self._client.get_source_filter_list(self.main_scene).filters
         except OBSSDKRequestError as e:   # un rechazo de OBS solo deja sin presets (no es una caída)
@@ -181,7 +186,25 @@ class ObsLink:
                 self._emit(tr("OBS rechazó un cambio en {name} ({error})", name=self.main_scene, error=e))
             filters = []
         by_name = {f.get("filterName"): f for f in filters}
-        return {n: _preset(by_name.get(name)) for n, name in config.HUD_FILTERS.items()}
+        return {n: by_name.get(name) for n, name in config.HUD_FILTERS.items()}
+
+    def _read_presets(self) -> dict[int, dict | None]:
+        """Posición y escala de los filtros H 4/5/6 (None si el filtro falta)."""
+        return {n: _preset(f) for n, f in self._hud_filters().items()}
+
+    def _move_plugin_loaded(self) -> bool | None:
+        """Si OBS tiene el filtro Move Source cargado (plugin Move Transition). None si esta versión
+        de obs-websocket no tiene GetSourceFilterKindList (o lo rechaza): no se puede saber."""
+        request = getattr(self._client, "get_source_filter_kind_list", None)
+        if request is None:
+            return None
+        try:
+            kinds = request().source_filter_kinds
+        except OBSSDKRequestError:
+            return None
+        except AttributeError:            # respuesta sin la lista
+            return None
+        return config.MOVE_FILTER_KIND in (kinds or [])
 
     def _scan(self) -> SceneReport:
         """Relee IDs y presets SIN apagar nada. Relanza los fallos de conexión."""
@@ -214,12 +237,16 @@ class ObsLink:
             faltan = [source_name(k, scene) for k in KINDS if source_name(k, scene) not in sub]
             if faltan:
                 missing_sources[scene] = faltan
-        presets = self._read_presets()
+        hud = self._hud_filters()
+        presets = {n: _preset(f) for n, f in hud.items()}
+        kinds = {n: (f.get("filterKind") if isinstance(f, dict) else None) for n, f in hud.items()}
+        move_plugin = self._move_plugin_loaded()
         self._scene_ids = {n: i for n, i in ids.items() if n in config.PLAYER_SCENES or n == BORDE}
         self._inner = inner
         self._presets = presets
         self._warned &= set(missing_scenes)
-        return SceneReport(True, missing_scenes, missing_sources, dict(presets), BORDE in ids)
+        return SceneReport(True, missing_scenes, missing_sources, dict(presets), BORDE in ids,
+                           kinds, move_plugin)
 
     def load_items(self) -> SceneReport:
         """Carga IDs y presets y apaga todo. Si falla la conexión, marca `connected = False`

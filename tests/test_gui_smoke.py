@@ -20,7 +20,7 @@ from overpower_cams.gui.page_settings import SettingsPage  # noqa: E402
 from overpower_cams.players import PlayerConfig, TeamsConfig  # noqa: E402
 from overpower_cams.portraits import PortraitModel  # noqa: E402
 from overpower_cams.storage import Settings, Storage  # noqa: E402
-from tests.conftest import FakeObsClient  # noqa: E402
+from conftest import FakeObsClient, fake_camaraman, gsi_payload  # noqa: E402
 
 DATA = Path(__file__).parent / "data"
 
@@ -90,7 +90,7 @@ def test_ventana_se_arma_sin_obs(qapp, appdata):
         # las revisiones llegan desde otro hilo y arman una fila por revisión
         assert [r.id for r in win.check_results] == [
             "dota", "gsi_cfg", "gsi_data", "keys", "obs", "scene", "player_scenes",
-            "move_filters", "scene_images", "portraits"]
+            "player_sources", "move_filters", "scene_images", "portraits"]
         assert next(r for r in win.check_results if r.id == "obs").status == "error"
     finally:
         win.close()
@@ -334,6 +334,61 @@ def test_carpeta_de_revision_sobrevive_a_ajustes_sin_guardar(qapp, appdata, tmp_
         win.close()
 
 
+def _dos_principales():
+    """Colección Camaraman con otra escena principal `Otra` (mismas escenas de jugador y Borde)."""
+    fake = fake_camaraman()
+    fake.scenes["Otra"] = dict(fake.scenes["Juego"])
+    fake._assign_ids()
+    return fake
+
+
+def _conectar(qapp, win):
+    for _ in range(2):
+        win.tick()
+        _esperar(qapp, win)
+
+
+@pytest.mark.parametrize("extra", [{}, {"obs_port": 4460}, {"obs_host": "localhost"}])
+def test_cambiar_la_escena_principal_apaga_lo_que_quedo_al_aire_en_la_vieja(qapp, appdata, extra):
+    fake = _dos_principales()
+    parts, win = _armar(fake)
+    try:
+        _conectar(qapp, win)
+        viejo = parts.obs
+        assert viejo.connected
+        viejo.apply("1 Hard carry", "test")
+        assert fake.is_enabled("1 Hard carry", "Juego") and fake.is_enabled("Borde", "Juego")
+        win.apply_settings(replace(parts.settings, main_scene="Otra", **extra))
+        _esperar(qapp, win)
+        assert win.obs is not viejo and win.obs.main_scene == "Otra"
+        assert fake.is_enabled("1 Hard carry", "Juego") is False
+        assert fake.is_enabled("Borde", "Juego") is False
+        assert not viejo.connected                          # y después se cerró
+    finally:
+        win.close()
+
+
+def test_cambiar_la_escena_principal_con_mantenimiento_en_curso_apaga_antes_de_cerrar(qapp, appdata):
+    """Si el hilo de mantenimiento usa el ObsLink viejo, `_obs_done` lo cierra: antes hay que apagar."""
+    fake = _dos_principales()
+    parts, win = _armar(fake)
+    try:
+        _conectar(qapp, win)
+        viejo = parts.obs
+        viejo.apply("1 Hard carry", "test")
+        win._obs_busy = True                                 # un ping/reconexión sigue en curso
+        win.apply_settings(replace(parts.settings, main_scene="Otra"))
+        _esperar(qapp, win)
+        assert viejo.connected and fake.is_enabled("1 Hard carry", "Juego")   # nadie lo tocó aún
+        win._obs_done(viejo, None)                           # termina el mantenimiento del viejo
+        _esperar(qapp, win)
+        assert fake.is_enabled("1 Hard carry", "Juego") is False
+        assert fake.is_enabled("Borde", "Juego") is False
+        assert not viejo.connected
+    finally:
+        win.close()
+
+
 def test_ajustes_guarda_main_scene_desde_la_pagina(qapp, appdata):
     parts, win = _armar(_obs_cerrado())
     try:
@@ -384,7 +439,6 @@ def _post(port, payload):
 
 
 def test_post_de_gsi_enciende_camara_y_se_ve_en_la_ventana(qapp, appdata):
-    from tests.conftest import fake_camaraman, gsi_payload
     fake = fake_camaraman()
     storage = Storage(paths.app_data_dir())
     jugadores = storage.load_players()
@@ -400,9 +454,15 @@ def test_post_de_gsi_enciende_camara_y_se_ve_en_la_ventana(qapp, appdata):
         assert fake.is_enabled("1 Offlaner", "Juego") is True and fake.is_enabled("Borde") is True
         win.tick()
         qapp.processEvents()
-        assert win.on_air_label.text() == "Al aire: Ceb · 1 Offlaner · Test2 · 4 habilidades"
+        # sin datos de habilidades no se inventa la cantidad (OBS usa el filtro de 4)
+        assert win.on_air_label.text() == "Al aire: Ceb · 1 Offlaner · Test2"
         assert "datos llegando" in win.dota_label.text() and win.dota_detail.text() == "hace 0 s"
         assert "en juego" in win.game_label.text() and win.game_detail.text() == "12:34"
+        con_habilidades = gsi_payload("r3", abilities={"1 Offlaner": 5})
+        con_habilidades["map"]["clock_time"] = 755
+        assert _post(parts.gsi.server_port, con_habilidades) == 200
+        win.tick()
+        assert win.on_air_label.text() == "Al aire: Ceb · 1 Offlaner · Test2 · 5 habilidades"
         fin = gsi_payload(None, state="DOTA_GAMERULES_STATE_POST_GAME")
         fin["map"]["clock_time"] = 2400
         assert _post(parts.gsi.server_port, fin) == 200

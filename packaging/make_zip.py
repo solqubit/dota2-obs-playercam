@@ -12,6 +12,7 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parent.parent
 APP = "DotaPlayerCams"
+DEFAULT_VERSION = "2.0.1"
 MOVE_RELEASE = "https://github.com/exeldro/obs-move-transition/releases/download/3.2.1/"
 MOVE_FILES = {
     "move-transition-3.2.1-windows-installer.exe": (
@@ -49,11 +50,15 @@ def build_zip(root: Path, version: str, plugin_files: dict[str, Path]) -> Path:
     folder = root / "dist" / APP
     if not (folder / f"{APP}.exe").is_file():
         raise ValueError(f"Falta dist/{APP}/{APP}.exe; ejecuta PyInstaller primero.")
+    notes = root / "packaging" / f"RELEASE_NOTES_v{version}.md"
+    if not notes.is_file():
+        raise ValueError(f"Faltan las notas de la versión {version}: crea packaging/{notes.name} "
+                         "(o revisa el número de versión).")
     entries = [
         (root / "packaging/FIRST_RUN_GUIDE.txt", "FIRST_RUN_GUIDE.txt"),
         (root / "packaging/GUIA_PRIMERA_VEZ.txt", "GUIA_PRIMERA_VEZ.txt"),
         (root / "packaging/PREPARAR_DEMO.cmd", "PREPARAR_DEMO.cmd"),
-        (root / "packaging/RELEASE_NOTES_v2.0.0.md", "RELEASE_NOTES.md"),
+        (notes, "RELEASE_NOTES.md"),
         (root / "docs/DEMO_CAMARAMAN.md", "Camaraman/LEEME-DEMO.md"),
         (root / "docs/img/app.png", "Camaraman/img/app.png"),
         (root / "docs/img/in-game.png", "Camaraman/img/in-game.png"),
@@ -85,7 +90,7 @@ def build_zip(root: Path, version: str, plugin_files: dict[str, Path]) -> Path:
 
 def main(argv=None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("version", nargs="?", default="2.0.0")
+    parser.add_argument("version", nargs="?", default=DEFAULT_VERSION)
     parser.add_argument("--resources", type=Path)
     args = parser.parse_args(argv)
     with plugin_bundle(args.resources) as files:

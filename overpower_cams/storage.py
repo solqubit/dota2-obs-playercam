@@ -6,15 +6,18 @@ import json
 import os
 import shutil
 import tempfile
+import time
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 
 from .config import DEFAULT_MAIN_SCENE, DEFAULT_OBS_PORT, OBS_HOST, PLAYER_SCENES
-from .i18n import LANGUAGES
+from .i18n import LANGUAGES, tr
 from .players import USES, PlayerConfig, TeamsConfig
 
 MODES = ("auto", "hidden")
+REPLACE_TRIES = 4          # en Windows, os.replace falla si otro programa tiene el archivo abierto
+REPLACE_RETRY_S = 0.05
 
 
 @dataclass
@@ -39,9 +42,17 @@ def _is_int(v) -> bool:
     return isinstance(v, int) and not isinstance(v, bool)
 
 
+def _copy_players(d: dict[str, PlayerConfig]) -> dict[str, PlayerConfig]:
+    """Los 10 jugadores (los que falten, vacíos) como copias nuevas."""
+    return {scene: PlayerConfig(**vars(d.get(scene, PlayerConfig()))) for scene in PLAYER_SCENES}
+
+
 class Storage:
     def __init__(self, base: Path):
         self.base = Path(base)
+        # Últimos jugadores guardados o leídos. Se reemplaza entero (nunca se muta), así el hilo
+        # de OBS lo lee sin lock y sin abrir players.json mientras la ventana lo reescribe.
+        self._players_snapshot: dict[str, PlayerConfig] | None = None
 
     # ---- utilidades ----
     def _read_json(self, path: Path):
@@ -50,20 +61,38 @@ class Storage:
         except (OSError, ValueError):
             return None
 
-    def _write_json(self, path: Path, data) -> None:
-        """Escritura atómica: archivo temporal en la misma carpeta + os.replace."""
+    def _write_json(self, path: Path, data, *, retry: bool = False) -> None:
+        """Escritura atómica: archivo temporal en la misma carpeta + os.replace. `retry` (solo
+        jugadores y equipos, desde la ventana) reintenta si Windows tiene el archivo ocupado; el
+        resto falla al momento (p. ej. los retratos se guardan con el lock del motor tomado)."""
         path.parent.mkdir(parents=True, exist_ok=True)
         fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
-            os.replace(tmp, path)
+            if retry:
+                self._replace(tmp, path)
+            else:
+                os.replace(tmp, path)
         except BaseException:
             try:
                 os.unlink(tmp)
             except OSError:
                 pass
             raise
+
+    @staticmethod
+    def _replace(tmp: str, path: Path) -> None:
+        """os.replace con unos pocos reintentos si Windows dice que el archivo está en uso
+        (antivirus, indexador u otro hilo leyéndolo)."""
+        for attempt in range(REPLACE_TRIES):
+            try:
+                os.replace(tmp, path)
+                return
+            except PermissionError:
+                if attempt == REPLACE_TRIES - 1:
+                    raise
+                time.sleep(REPLACE_RETRY_S)
 
     # ---- ajustes ----
     def load_settings(self) -> Settings:
@@ -129,9 +158,31 @@ class Storage:
         self._write_json(self.base / "portraits.json", {"portraits": d})
 
     # ---- jugadores y equipos ----
+    def players_snapshot(self) -> dict[str, PlayerConfig]:
+        """Los jugadores en memoria (lo último que se guardó o leyó bien). Es lo que usa OBS en
+        cada cambio de escena: no abre el archivo (solo la primera vez, si nadie lo leyó antes).
+        No hay que modificar lo que devuelve."""
+        snap = self._players_snapshot
+        if snap is None:
+            self.load_players()
+            snap = self._players_snapshot
+        return snap
+
     def load_players(self) -> dict[str, PlayerConfig]:
+        out = self._load_players()
+        if out is not None:
+            self._players_snapshot = _copy_players(out)
+        elif self._players_snapshot is None:
+            self._players_snapshot = _copy_players({})
+        return out if out is not None else _copy_players(self._players_snapshot)
+
+    def _load_players(self) -> dict[str, PlayerConfig] | None:
+        """None si players.json existe pero no se pudo leer (p. ej. a medio escribir)."""
         out = {scene: PlayerConfig() for scene in PLAYER_SCENES}
-        raw = self._read_json(self.base / "players.json")
+        path = self.base / "players.json"
+        raw = self._read_json(path)
+        if raw is None and path.exists():
+            return None
         players = raw.get("players") if isinstance(raw, dict) else None
         if not isinstance(players, dict):
             return out
@@ -148,12 +199,13 @@ class Storage:
         return out
 
     def save_players(self, d: dict[str, PlayerConfig]) -> None:
-        raw = self._read_json(self.base / "players.json")
+        raw = self._players_for_update()
         teams = raw.get("teams") if isinstance(raw, dict) and isinstance(raw.get("teams"), dict) else {}
         self._write_json(self.base / "players.json", {
             "teams": teams,
             "players": {scene: asdict(p) for scene, p in d.items() if scene in PLAYER_SCENES},
-        })
+        }, retry=True)
+        self._players_snapshot = _copy_players(d)   # solo si se guardó
 
     def load_teams(self) -> TeamsConfig:
         t = TeamsConfig()
@@ -167,9 +219,21 @@ class Storage:
         return t
 
     def save_teams(self, t: TeamsConfig) -> None:
-        raw = self._read_json(self.base / "players.json")
+        raw = self._players_for_update()
         players = raw.get("players") if isinstance(raw, dict) and isinstance(raw.get("players"), dict) else {}
-        self._write_json(self.base / "players.json", {"teams": asdict(t), "players": players})
+        self._write_json(self.base / "players.json", {"teams": asdict(t), "players": players},
+                         retry=True)
+
+    def _players_for_update(self) -> dict:
+        """No sustituir con valores vacíos las secciones que no se pudieron leer."""
+        path = self.base / "players.json"
+        raw = self._read_json(path)
+        if isinstance(raw, dict):
+            return raw
+        if path.exists():
+            raise OSError(tr("No pude leer los datos de jugadores; se conserva el archivo existente. "
+                             "Vuelve a intentar guardar."))
+        return {}
 
     # ---- copias de seguridad ----
     def backup(self, src: Path) -> Path:

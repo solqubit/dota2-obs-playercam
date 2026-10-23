@@ -41,7 +41,8 @@ def input_note(mode: str) -> str:
 
 
 def on_air_text(st, players: dict[str, PlayerConfig]) -> str:
-    """'Al aire: jugador · escena · héroe · N habilidades' (o que no hay nada al aire)."""
+    """'Al aire: jugador · escena · héroe · N habilidades' (o que no hay nada al aire). Sin datos
+    de habilidades se omite la cantidad."""
     if not st.camera:
         if st.mode == "hidden":
             return tr("Al aire: nada (Ocultar todo)")
@@ -52,7 +53,9 @@ def on_air_text(st, players: dict[str, PlayerConfig]) -> str:
     hero = hero_display(st.hero)
     if hero:
         parts.append(hero)
-    parts.append(tr("{n} habilidades", n=st.abilities.get(st.camera, 4)))
+    n = st.abilities.get(st.camera)
+    if n is not None:            # sin datos de GSI no se dice cuántas (OBS usa el filtro de 4)
+        parts.append(tr("{n} habilidades", n=n))
     return tr("Al aire: {details}", details=" · ".join(parts))
 
 
