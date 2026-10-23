@@ -582,3 +582,79 @@ def test_aviso_sin_camara_ni_foto_una_vez_por_escena():
     link.apply(None, "b")
     link.apply(HC, "c")
     assert len([e for e in events if "no tiene cámara ni foto" in e]) == 1
+
+
+# ---------- nombre, URLs y Cámara/Foto en vivo ----------
+
+def test_set_player_name_escribe_el_texto_de_la_fuente_nombre():
+    fake = fake_camaraman(inputs={source_name("Nombre", HC): {"text": "viejo", "font": "x"}})
+    fake, link = listo(fake)
+    assert link.set_player_name(HC, "Yatoro") is True
+    assert fake.inputs[source_name("Nombre", HC)] == {"text": "Yatoro", "font": "x"}
+
+
+def test_set_player_url_camara_y_foto():
+    fake = fake_camaraman(inputs={source_name("Camara", HC): {"url": "a"}, source_name("Foto", HC): {"url": "b"}})
+    fake, link = listo(fake)
+    assert link.set_player_url(HC, "camera", "http://nueva-cam") is True
+    assert link.set_player_url(HC, "photo", "http://nueva-foto") is True
+    assert fake.inputs[source_name("Camara", HC)]["url"] == "http://nueva-cam"
+    assert fake.inputs[source_name("Foto", HC)]["url"] == "http://nueva-foto"
+
+
+def test_set_player_sin_fuente_o_sin_conexion_devuelve_false_sin_lanzar():
+    fake, link = listo(fake_camaraman(inputs={}))          # ninguna entrada existe
+    assert link.set_player_name(HC, "x") is False
+    assert link.set_player_url(HC, "camera", "u") is False
+    assert link.set_player_url(HC, "otro", "u") is False
+    assert link.connected is True
+    link.close()
+    assert link.set_player_name(HC, "x") is False
+    assert link.set_player_url(HC, "photo", "u") is False
+    assert link.refresh_player_mode(HC) is False
+
+
+def test_set_player_con_obs_caido_marca_desconectado():
+    fake = fake_camaraman(inputs={source_name("Nombre", HC): {}})
+    fake, link = listo(fake)
+    fake.fail_next = True
+    assert link.set_player_name(HC, "x") is False
+    assert link.connected is False
+
+
+def test_foto_sin_url_con_camara_enciende_la_camara_y_avisa():
+    events = []
+    players = jugadores(**{"1_Hard_carry": PlayerConfig(camera_url="http://cam", photo_url="", use="photo")})
+    fake, link = listo(players=players, events=events)
+    link.apply(HC, "x")
+    assert fake.is_enabled(source_name("Camara", HC), HC) is True
+    assert fake.is_enabled(source_name("Foto", HC), HC) is False
+    assert f"{HC}: no hay link de foto, se usa la cámara" in events
+
+
+def test_camara_sin_url_con_foto_enciende_la_foto_y_avisa():
+    events = []
+    players = jugadores(**{"1_Hard_carry": PlayerConfig(camera_url="", photo_url="http://f", use="camera")})
+    fake, link = listo(players=players, events=events)
+    link.apply(HC, "x")
+    assert fake.is_enabled(source_name("Foto", HC), HC) is True
+    assert f"{HC}: no hay link de cámara, se usa la foto" in events
+
+
+def test_refresh_player_mode_cambia_al_momento_con_el_jugador_al_aire():
+    players = jugadores()
+    fake, link = listo(players=players)
+    link.apply(HC, "x")
+    assert fake.is_enabled(source_name("Camara", HC), HC) is True
+    players[HC].use = "photo"
+    assert link.refresh_player_mode(HC) is True
+    assert fake.is_enabled(source_name("Foto", HC), HC) is True
+    assert fake.is_enabled(source_name("Camara", HC), HC) is False
+
+
+def test_refresh_player_mode_ignora_escena_que_no_esta_al_aire():
+    fake, link = listo()
+    link.apply(HC, "x")
+    fake.ops.clear()
+    assert link.refresh_player_mode(MID) is False
+    assert fake.ops == []

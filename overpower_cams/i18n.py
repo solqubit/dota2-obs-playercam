@@ -280,6 +280,8 @@ EN: dict[str, str] = {
     "{scene} no está en la escena de OBS: se apaga la escena anterior":
         "{scene} isn't in the OBS scene: turning off the previous scene",
     "{scene} no tiene cámara ni foto configuradas": "{scene} has no camera or photo set up",
+    "{scene}: no hay link de foto, se usa la cámara": "{scene}: no photo link, using the camera",
+    "{scene}: no hay link de cámara, se usa la foto": "{scene}: no camera link, using the photo",
     "OBS rechazó un cambio en {name} ({error})": "OBS refused a change to {name} ({error})",
     "ninguna": "none",
     "Reconectado a OBS en {host}:{port}": "Reconnected to OBS at {host}:{port}",
