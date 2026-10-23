@@ -66,7 +66,7 @@ GSI_CFG_TEXT = (
     '        "map"           "1"\n'
     '        "player"        "1"\n'
     '        "hero"          "1"\n'
-    '        "abilities"     "0"\n'
+    '        "abilities"     "1"\n'
     '        "items"         "0"\n'
     '        "draft"         "0"\n'
     '        "wearables"     "0"\n'

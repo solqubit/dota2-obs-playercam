@@ -9,3 +9,7 @@ def test_constantes_del_spec():
     assert '"uri"           "http://127.0.0.1:3000/"' in GSI_CFG_TEXT
     assert '"throttle"      "0.01"' in GSI_CFG_TEXT
     assert round(PORTRAIT_PITCH * 1080) == 62
+
+
+def test_gsi_pide_habilidades():
+    assert '"abilities"     "1"' in GSI_CFG_TEXT
