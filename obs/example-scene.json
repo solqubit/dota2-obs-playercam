@@ -5593,12 +5593,6 @@
             "active": false,
             "switches": []
         },
-        "captions": {
-            "source": "",
-            "enabled": false,
-            "lang_id": 2058,
-            "provider": "mssapi"
-        },
         "output-timer": {
             "streamTimerHours": 0,
             "streamTimerMinutes": 0,

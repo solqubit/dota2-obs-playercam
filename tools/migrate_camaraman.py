@@ -318,6 +318,7 @@ def ejemplo(col):
         if "AudioDevice" in clave and isinstance(valor, dict):
             valor["settings"] = {"device_id": "default"}
     col["saved_projectors"] = []
+    col.get("modules", {}).pop("captions", None)          # idioma de subtítulos de la PC de origen
     return col
 
 

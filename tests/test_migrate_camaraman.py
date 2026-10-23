@@ -183,6 +183,7 @@ def test_ejemplo_limpio(coleccion, tmp_path):
 
 def test_ejemplo_quita_lo_de_plugins_ajenos(coleccion, tmp_path):
     col = _cargar(coleccion)
+    col.setdefault("modules", {})["captions"] = {"lang_id": 2058, "provider": "mssapi"}
     col["canvases"] = [{"info": {"name": "Aitum Vertical", "uuid": "x"}}]
     col["sources"].append({"id": "scene", "name": "Escena vertical", "uuid": "u-vertical",
                            "settings": {"items": [], "id_counter": 0}})
@@ -192,6 +193,7 @@ def test_ejemplo_quita_lo_de_plugins_ajenos(coleccion, tmp_path):
     assert _correr([coleccion, "--example", salida]) == 0
     ejemplo = _cargar(salida)
     assert "canvases" not in ejemplo
+    assert "captions" not in ejemplo.get("modules", {})
     assert "Escena vertical" not in _fuentes(ejemplo)
     assert "Escena vertical" not in [e["name"] for e in ejemplo["scene_order"]]
     assert "Juego" in _fuentes(ejemplo)

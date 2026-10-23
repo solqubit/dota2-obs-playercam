@@ -87,7 +87,7 @@ def test_mascaras_sin_ruta_y_textos_con_el_nombre_de_la_escena():
 
 def test_sin_rutas_ni_datos_personales():
     texto = EJEMPLO.read_text(encoding="utf-8")
-    assert not re.search(r"(?i)\b[a-z]:[\/]", texto)        # rutas de disco
+    assert not re.search(r"(?i)\b[a-z]:[\\/]", texto)       # rutas de disco
     assert not re.search(r"(?i)https?://", texto)             # enlaces a terceros
     assert "Users" not in texto and "damia" not in texto.lower()
     col = json.loads(texto)
