@@ -162,11 +162,11 @@ def test_app_name_en_los_dos_idiomas():
     assert config.app_name() == "OverPower · Dota Player Cams"
 
 
-def test_instrucciones_de_escena_nombran_el_archivo_de_ejemplo():
+def test_instrucciones_de_escena_nombran_la_coleccion_camaraman():
     from overpower_cams import checks
     for code in ("es", "en"):
         set_language(code)
-        assert "«example-scene.json»" in checks._instr_escena()
+        assert "Camaraman" in checks._instr_escena()
 
 
 def test_la_consola_reconoce_los_eventos_en_ingles():

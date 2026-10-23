@@ -3,16 +3,19 @@ from pathlib import Path
 
 import pytest
 
+from obsws_python.error import OBSSDKRequestError
+
 from overpower_cams import checks, config, gsi_cfg, paths
 from overpower_cams.checks import CheckResult, Context, FixRefused, apply_fix, run_checks
 from overpower_cams.dota_keys import fix_keys_text, missing_slots, parse_player_keys
 from overpower_cams.obs_link import ObsLink
 from overpower_cams.portraits import PortraitModel
 from overpower_cams.storage import Settings, Storage
-from conftest import FakeObsClient, filtros_camaraman, layout_camaraman, layout_nuevo
+from conftest import FakeObsClient, fake_camaraman, filtros_camaraman, layout_camaraman, layout_nuevo
 
 DATA = Path(__file__).parent / "data" / "dotakeys_ejemplo.lst"
-IDS = ["dota", "gsi_cfg", "gsi_data", "keys", "obs", "scene", "companion_images", "portraits"]
+IDS = ["dota", "gsi_cfg", "gsi_data", "keys", "obs", "scene", "player_scenes", "move_filters",
+       "scene_images", "portraits"]
 NOW = 1000.0
 
 
@@ -35,13 +38,14 @@ def make_ctx(tmp_path, fake=None, *, connect=True, last_post_t=NOW - 1, with_key
         keys_file = tmp_path / "steam" / "userdata" / "1" / "570" / "remote" / "cfg" / "dotakeys_personal.lst"
         keys_file.parent.mkdir(parents=True, exist_ok=True)
         keys_file.write_bytes(DATA.read_bytes())
-    fake = fake or FakeObsClient(layout_nuevo(), inputs={"Borde": {"file": str(tmp_path / "x.png")}})
+    fake = fake or fake_camaraman(inputs={"Borde": {"file": str(tmp_path / "x.png")}})
     obs = ObsLink("127.0.0.1", 4455, "pw", client_factory=fake.factory)
     if connect:
         obs.connect()
     assets = tmp_path / "assets"
     assets.mkdir(exist_ok=True)
-    (assets / "Borde.png").write_bytes(b"png")
+    for n in ("Borde", "Mascara camara", "Marco sin camara"):
+        (assets / f"{n}.png").write_bytes(b"png")
     ctx = Context(storage=Storage(tmp_path / "data"), settings=Settings(), steam=tmp_path / "steam",
                   dota=dota, keys_file=keys_file, obs=obs, last_post_t=last_post_t, now=NOW,
                   assets_dir=assets, portraits=PortraitModel(portraits))
@@ -57,23 +61,16 @@ def check(ctx, cid, **kw):
     return by_id(run_checks(ctx, **kw))[cid]
 
 
-def make_images_ok(fake, tmp_path):
-    for n in ("Borde", "Marco"):
-        p = tmp_path / f"{n}.png"
-        p.write_bytes(b"png")
-        fake.inputs[n] = {"file": str(p)}
-
-
 # ---------- general ----------
 
 def test_orden_e_ids_y_todo_ok(tmp_path):
     ctx, fake = make_ctx(tmp_path)
-    make_images_ok(fake, tmp_path)
+    imagenes_ok(tmp_path, fake)
     ctx.keys_file.write_bytes(fix_keys_text(DATA.read_text(newline="")).encode())
     res = run_checks(ctx, is_running=CERRADO)
     assert [r.id for r in res] == IDS
     assert all(isinstance(r, CheckResult) for r in res)
-    assert [r.status for r in res] == ["ok"] * 8, [(r.id, r.status, r.detail) for r in res]
+    assert [r.status for r in res] == ["ok"] * 10, [(r.id, r.status, r.detail) for r in res]
 
 
 def test_run_checks_no_modifica_nada(tmp_path):
@@ -90,7 +87,7 @@ def test_run_checks_no_modifica_nada(tmp_path):
 
 def test_run_checks_no_apaga_la_escena_al_aire_en_obs(tmp_path):
     """Revisar no puede cambiar lo que sale al aire (load_items apagaría todo)."""
-    fake = FakeObsClient(layout_nuevo(), scenes=layout_camaraman(), filters=filtros_camaraman())
+    fake = fake_camaraman()
     ctx, _ = make_ctx(tmp_path, fake)
     ctx.obs.load_items()
     ctx.obs.apply("1 Hard carry", "test")
@@ -159,6 +156,19 @@ def test_gsi_cfg_distinto_se_respalda_y_avisa_si_dota_abierto(tmp_path):
     assert check(ctx, "gsi_cfg").status == "ok"
     copias = list((ctx.storage.base / "backups").iterdir())
     assert len(copias) == 1 and copias[0].read_text(encoding="utf-8") == '"otra cosa" { }'
+
+
+def test_gsi_cfg_con_abilities_en_cero_es_distinto_y_se_arregla(tmp_path):
+    ctx, _ = make_ctx(tmp_path)
+    cfg = paths.gsi_cfg_path(ctx.dota)
+    texto = cfg.read_text(encoding="utf-8")
+    assert '"abilities"     "1"' in texto
+    cfg.write_text(texto.replace('"abilities"     "1"', '"abilities"     "0"'), encoding="utf-8")
+    r = check(ctx, "gsi_cfg")
+    assert r.status == "error" and r.fix_label == "Arreglar"
+    apply_fix("gsi_cfg", ctx, is_running=CERRADO)
+    assert '"abilities"     "1"' in cfg.read_text(encoding="utf-8")
+    assert check(ctx, "gsi_cfg").status == "ok"
 
 
 def test_gsi_cfg_sin_dota_se_niega(tmp_path):
@@ -242,7 +252,7 @@ def test_keys_arreglo_conserva_crlf(tmp_path):
 # ---------- obs ----------
 
 def test_obs_estados(tmp_path):
-    fake = FakeObsClient(layout_nuevo())
+    fake = fake_camaraman()
     ctx, _ = make_ctx(tmp_path, fake, connect=False)
     fake.connect_error = ConnectionRefusedError()
     ctx.obs.connect()
@@ -264,7 +274,7 @@ def test_obs_estados(tmp_path):
     assert "algo raro" in check(ctx, "obs").detail
     # sin OBS, la escena es error y las imágenes quedan sin revisar
     assert check(ctx, "scene").status == "error"
-    assert check(ctx, "companion_images").status == "warn"
+    assert check(ctx, "scene_images").status == "warn"
     fake.connect_error = None
     ctx.obs.connect()
     assert check(ctx, "obs").status == "ok"
@@ -280,92 +290,212 @@ def test_conexion_que_se_cae_durante_la_revision(tmp_path):
 
 # ---------- scene ----------
 
-def test_falta_camara_es_rojo_con_la_lista(tmp_path):
-    layout = layout_nuevo()
-    del layout["CAM_EQ1_3"], layout["CAM_EQ2_5"]
-    ctx, _ = make_ctx(tmp_path, FakeObsClient(layout))
+def test_scene_ok_y_falta_borde(tmp_path):
+    ctx, fake = make_ctx(tmp_path)
+    assert check(ctx, "scene").status == "ok"
+    ctx, fake = make_ctx(tmp_path, fake_camaraman(borde=False))
     r = check(ctx, "scene")
-    assert r.status == "error" and r.fix_label is None
-    assert "CAM_EQ1_3" in r.detail and "CAM_EQ2_5" in r.detail
-    assert "Importar" in (r.instructions or "")
-
-
-def test_escena_inexistente(tmp_path):
-    ctx, _ = make_ctx(tmp_path, FakeObsClient(layout_nuevo(), scene_exists=False))
-    r = check(ctx, "scene")
-    assert r.status == "error" and config.SCENE_NAME in r.detail
-    assert "Colección de escenas" in (r.instructions or "")
-    with pytest.raises(FixRefused):
-        apply_fix("scene", ctx)
-
-
-def test_falta_marco_se_crea(tmp_path):
-    ctx, fake = make_ctx(tmp_path, FakeObsClient(layout_nuevo(companions=("Borde",))))
-    r = check(ctx, "scene")
-    assert r.status == "warn" and r.fix_label == "Arreglar" and "Marco" in r.detail
-    msg = apply_fix("scene", ctx)
-    assert "Marco" in msg
-    assert fake.created == [("Escena Dota", "Marco", "image_source", {}, False)]
+    assert r.status == "warn" and "Borde" in r.detail and r.fix_label == "Arreglar"
+    apply_fix("scene", ctx)
+    assert fake.created[-1][:3] == ("Juego", "Borde", "image_source")
     assert check(ctx, "scene").status == "ok"
 
 
+def test_escena_principal_inexistente_es_error(tmp_path):
+    fake = fake_camaraman()
+    fake.removed.add("Juego")
+    ctx, _ = make_ctx(tmp_path, fake)
+    r = check(ctx, "scene")
+    assert r.status == "error" and "Juego" in r.detail and r.fix_label is None
+    assert "Colección de escenas" in (r.instructions or "")
+    with pytest.raises(FixRefused):
+        apply_fix("scene", ctx)
+    assert check(ctx, "player_scenes").status == "warn"
+    assert check(ctx, "move_filters").status == "warn"
+
+
 def test_arreglar_escena_sin_conexion_se_niega(tmp_path):
-    ctx, _ = make_ctx(tmp_path, FakeObsClient(layout_nuevo(companions=())), connect=False)
+    ctx, _ = make_ctx(tmp_path, connect=False)
     with pytest.raises(FixRefused):
         apply_fix("scene", ctx)
 
 
-# ---------- companion_images ----------
+# ---------- player_scenes ----------
 
-def test_borde_sin_imagen_se_arregla(tmp_path):
-    ctx, fake = make_ctx(tmp_path)
-    fake.inputs["Marco"] = {"file": str(tmp_path / "marco.png")}
-    (tmp_path / "marco.png").write_bytes(b"png")
-    r = check(ctx, "companion_images")
-    assert r.status == "warn" and r.fix_label == "Arreglar" and "Borde" in r.detail
-    apply_fix("companion_images", ctx)
-    assert ctx.obs.get_image_path("Borde") == str(ctx.assets_dir / "Borde.png")
-    assert check(ctx, "companion_images").status == "ok"
-
-
-def test_marco_sin_imagen_ni_asset_no_tiene_arreglo(tmp_path):
-    ctx, fake = make_ctx(tmp_path)
-    p = tmp_path / "b.png"
-    p.write_bytes(b"png")
-    fake.inputs["Borde"] = {"file": str(p)}
-    fake.inputs["Marco"] = {}
-    r = check(ctx, "companion_images")
-    assert r.status == "warn" and "Marco sin imagen asignada" in r.detail and r.fix_label is None
-    assert "Marco.png" in r.instructions and str(ctx.assets_dir) in r.instructions
-    with pytest.raises(FixRefused):
-        apply_fix("companion_images", ctx)
+def sin_escenas(fake, *nombres):
+    """Quita las escenas de OBS por completo (no solo de la principal)."""
+    for k in ("Camara", "Foto", "Fondo", "Nombre"):   # la plantilla necesita sus entradas
+        fake.inputs.setdefault(config.source_name(k, "1 Hard carry"), {})
+    for n in nombres:
+        fake.scenes.pop(n, None)
+        fake._containers.pop(n, None)
+        for k in [k for k, v in fake._names.items() if k[0] == n or v == n]:
+            fake._names.pop(k)
+        for k in [k for k in fake.inputs if k.endswith(" · " + n)]:
+            fake.inputs.pop(k)
+        fake.scenes["Juego"].pop(n, None)
+        fake._containers["Juego"] = [i for i in fake._containers["Juego"] if i["sourceName"] != n]
 
 
-def test_marco_con_asset_en_la_carpeta_de_la_app_se_arregla(tmp_path):
-    ctx, fake = make_ctx(tmp_path)
-    p = tmp_path / "b.png"
-    p.write_bytes(b"png")
-    fake.inputs["Borde"] = {"file": str(p)}
-    fake.inputs["Marco"] = {}
-    (ctx.assets_dir / "Marco.png").write_bytes(b"png")
-    r = check(ctx, "companion_images")
-    assert r.status == "warn" and r.fix_label == "Arreglar"
-    apply_fix("companion_images", ctx)
-    assert ctx.obs.get_image_path("Marco") == str(ctx.assets_dir / "Marco.png")
-    assert ctx.obs.get_image_path("Borde") == str(p)      # el que ya estaba bien no se toca
-    assert check(ctx, "companion_images").status == "ok"
-
-
-def test_acompanante_ausente_no_se_revisa(tmp_path):
-    ctx, _ = make_ctx(tmp_path, FakeObsClient(layout_nuevo(companions=())))
-    assert check(ctx, "companion_images").status == "ok"
-
-
-def test_borde_sin_copia_empaquetada_se_niega(tmp_path):
+def test_player_scenes_ok(tmp_path):
     ctx, _ = make_ctx(tmp_path)
-    (ctx.assets_dir / "Borde.png").unlink()
+    assert check(ctx, "player_scenes").status == "ok"
+
+
+def test_player_scenes_faltan_escenas_y_fuentes_con_la_lista(tmp_path):
+    fake = fake_camaraman(skip_scenes=("2 Mid laner",), skip_sources=("Foto · 1 Offlaner",))
+    ctx, _ = make_ctx(tmp_path, fake)
+    r = check(ctx, "player_scenes")
+    assert r.status == "warn" and r.fix_label
+    assert "2 Mid laner" in r.detail and "Foto · 1 Offlaner" in r.detail
+
+
+def test_player_scenes_arreglo_crea_las_que_faltan(tmp_path):
+    fake = fake_camaraman()
+    sin_escenas(fake, "2 Mid laner", "2 Hard support")
+    ctx, _ = make_ctx(tmp_path, fake)
+    msg = apply_fix("player_scenes", ctx)
+    assert "2 Mid laner" in msg and "2 Hard support" in msg
+    assert ("scene_create", "2 Mid laner") in fake.ops
+    assert ("scene_create", "2 Hard support") in fake.ops
+    assert check(ctx, "player_scenes").status == "ok"
+
+
+def test_player_scenes_arreglo_si_ya_existen_en_obs_pero_no_en_la_principal(tmp_path):
+    ctx, _ = make_ctx(tmp_path, fake_camaraman(skip_scenes=("2 Mid laner",)))
+    with pytest.raises(FixRefused, match="2 Mid laner"):
+        apply_fix("player_scenes", ctx)
+
+
+def test_player_scenes_arreglo_sin_plantilla_se_niega(tmp_path):
+    fake = fake_camaraman(skip_scenes=("1 Hard carry", "2 Mid laner"))
+    ctx, _ = make_ctx(tmp_path, fake)
+    with pytest.raises(FixRefused, match="1 Hard carry"):
+        apply_fix("player_scenes", ctx)
+    assert not any(o[0] == "scene_create" for o in fake.ops)
+
+
+def test_player_scenes_arreglo_sin_escenas_faltantes_se_niega(tmp_path):
+    ctx, _ = make_ctx(tmp_path)
     with pytest.raises(FixRefused):
-        apply_fix("companion_images", ctx)
+        apply_fix("player_scenes", ctx)
+
+
+def test_player_scenes_arreglo_que_falla_a_medias_informa(tmp_path):
+    fake = fake_camaraman()
+    sin_escenas(fake, "2 Mid laner", "2 Hard support")
+    ctx, _ = make_ctx(tmp_path, fake)
+    orig = fake.create_scene
+
+    def falla(name):
+        if name == "2 Hard support":
+            raise OBSSDKRequestError("CreateScene", 700, "boom")
+        return orig(name)
+    fake.create_scene = falla
+    with pytest.raises(FixRefused) as e:
+        apply_fix("player_scenes", ctx)
+    assert "2 Hard support" in str(e.value) and "2 Mid laner" in str(e.value)
+    assert ctx.obs.connected
+
+
+# ---------- move_filters ----------
+
+def test_move_filters_ok_y_faltan(tmp_path):
+    ctx, _ = make_ctx(tmp_path)
+    assert check(ctx, "move_filters").status == "ok"
+    ctx, _ = make_ctx(tmp_path, fake_camaraman(omitir_filtros=("H 5 habilidades", "H 6 habilidades")))
+    r = check(ctx, "move_filters")
+    assert r.status == "warn" and r.fix_label is None
+    assert "H 5 habilidades" in r.detail and "H 6 habilidades" in r.detail
+    assert "H 4 habilidades" not in r.detail
+    assert "Move Transition" in r.detail and "Move Transition" in (r.instructions or "")
+    with pytest.raises(FixRefused):
+        apply_fix("move_filters", ctx)
+
+
+# ---------- scene_images ----------
+
+def imagenes_ok(tmp_path, fake):
+    """Todas las rutas de máscara, fondo y Borde apuntan a archivos que existen."""
+    existe = tmp_path / "ok.png"
+    existe.write_bytes(b"png")
+    for s in config.PLAYER_SCENES:
+        fake.inputs[config.source_name("Fondo", s)] = {"file": str(existe)}
+        for k in ("Camara", "Foto"):
+            src = config.source_name(k, s)
+            fake.inputs.setdefault(src, {})
+            fake.filters[src] = {"Máscara": {"enabled": True, "kind": "mask_filter",
+                                             "settings": {"image_path": str(existe)}}}
+    fake.inputs["Borde"] = {"file": str(existe)}
+    return existe
+
+
+def test_scene_images_ok(tmp_path):
+    fake = fake_camaraman()
+    imagenes_ok(tmp_path, fake)
+    ctx, _ = make_ctx(tmp_path, fake)
+    assert check(ctx, "scene_images").status == "ok"
+
+
+def test_scene_images_sin_obs_queda_sin_revisar(tmp_path):
+    ctx, _ = make_ctx(tmp_path, connect=False)
+    assert check(ctx, "scene_images").status == "warn"
+
+
+def test_scene_images_rutas_rotas_se_arreglan_y_las_buenas_no_se_tocan(tmp_path):
+    fake = fake_camaraman()
+    buena = imagenes_ok(tmp_path, fake)
+    rota = str(tmp_path / "no_existe.png")
+    fake.filters["Camara · 1 Hard carry"]["Máscara"]["settings"]["image_path"] = rota
+    fake.filters["Foto · 2 Offlaner"]["Máscara"]["settings"]["image_path"] = ""
+    fake.inputs["Fondo · 1 Mid laner"]["file"] = rota
+    ctx, _ = make_ctx(tmp_path, fake)
+    assets = ctx.assets_dir
+    r = check(ctx, "scene_images")
+    assert r.status == "warn" and r.fix_label == "Arreglar"
+    for n in ("Camara · 1 Hard carry", "Foto · 2 Offlaner", "Fondo · 1 Mid laner"):
+        assert n in r.detail
+    fake.ops.clear()
+    apply_fix("scene_images", ctx)
+    assert fake.filters["Camara · 1 Hard carry"]["Máscara"]["settings"]["image_path"] == \
+        str(assets / "Mascara camara.png")
+    assert fake.filters["Foto · 2 Offlaner"]["Máscara"]["settings"]["image_path"] == \
+        str(assets / "Mascara camara.png")
+    assert fake.inputs["Fondo · 1 Mid laner"]["file"] == str(assets / "Marco sin camara.png")
+    assert fake.filters["Camara · 1 Mid laner"]["Máscara"]["settings"]["image_path"] == str(buena)
+    assert len(fake.ops) == 2        # los 2 filtros rotos (el input no deja op en el fake)
+    assert check(ctx, "scene_images").status == "ok"
+
+
+def test_scene_images_borde_sin_imagen_se_arregla(tmp_path):
+    fake = fake_camaraman()
+    imagenes_ok(tmp_path, fake)
+    fake.inputs["Borde"] = {}
+    ctx, _ = make_ctx(tmp_path, fake)
+    r = check(ctx, "scene_images")
+    assert r.status == "warn" and "Borde" in r.detail
+    apply_fix("scene_images", ctx)
+    assert fake.inputs["Borde"]["file"] == str(ctx.assets_dir / "Borde.png")
+
+
+def test_scene_images_sin_assets_empaquetados_se_niega(tmp_path):
+    fake = fake_camaraman()
+    imagenes_ok(tmp_path, fake)
+    fake.inputs["Fondo · 1 Mid laner"]["file"] = str(tmp_path / "no.png")
+    ctx, _ = make_ctx(tmp_path, fake)
+    (ctx.assets_dir / "Marco sin camara.png").unlink()
+    r = check(ctx, "scene_images")
+    assert r.status == "warn" and r.fix_label is None and "Marco sin camara.png" in (r.instructions or "")
+    with pytest.raises(FixRefused):
+        apply_fix("scene_images", ctx)
+
+
+def test_scene_images_sin_problemas_el_arreglo_se_niega(tmp_path):
+    fake = fake_camaraman()
+    imagenes_ok(tmp_path, fake)
+    ctx, _ = make_ctx(tmp_path, fake)
+    with pytest.raises(FixRefused):
+        apply_fix("scene_images", ctx)
 
 
 # ---------- portraits ----------
@@ -387,8 +517,8 @@ def test_apply_fix_id_desconocido(tmp_path):
 # ---------- la escena cambia después de conectar ----------
 
 def test_run_checks_ve_la_escena_importada_despues_de_conectar(tmp_path):
-    fake = FakeObsClient(layout_nuevo(), scene_exists=False,
-                         inputs={"Borde": {"file": str(tmp_path / "x.png")}})
+    fake = fake_camaraman()
+    fake.removed.add("Juego")
     ctx, _ = make_ctx(tmp_path, fake)
     ctx.obs.load_items()                           # se conectó sin la escena
     fake.scene_exists = True                       # y luego la importaron

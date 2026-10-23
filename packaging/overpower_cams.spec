@@ -11,6 +11,8 @@ a = Analysis(
     pathex=[RAIZ],
     binaries=[],
     datas=[(os.path.join(RAIZ, 'assets', 'Borde.png'), 'assets'),
+           (os.path.join(RAIZ, 'assets', 'Mascara camara.png'), 'assets'),
+           (os.path.join(RAIZ, 'assets', 'Marco sin camara.png'), 'assets'),
            (os.path.join(RAIZ, 'overpower_cams', 'data', 'innate_passives.json'), 'overpower_cams/data')],
     hiddenimports=[],
     hookspath=[],

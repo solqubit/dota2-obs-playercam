@@ -12,18 +12,18 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from obsws_python.error import OBSSDKRequestError
-
 from . import config, gsi_cfg, paths
 from .dota_keys import fix_keys_text, link_enabled, missing_slots, parse_player_keys
 from .i18n import tr
-from .obs_link import ObsLink
+from .obs_link import BORDE, ObsLink, SceneReport
 from .portraits import PortraitModel
+from .scene_builder import SceneBuildError
 from .storage import Settings, Storage
 
 DOTA_EXE = "dota2.exe"
-ALL_CAMERAS = config.CAMERAS_TEAM1 + config.CAMERAS_TEAM2   # v1: la Task 8 reescribe estas revisiones
-_RESOURCE_NOT_FOUND = 600   # código de obs-websocket: la escena no existe
+MASK_ASSET = "Mascara camara.png"        # máscara de Camara/Foto, en assets/
+FONDO_ASSET = "Marco sin camara.png"     # imagen de Fondo, en assets/
+TEMPLATE_SCENE = "1 Hard carry"          # plantilla para crear escenas de jugador
 
 # Textos largos ("Ver instrucciones"): funciones, para que salgan en el idioma elegido.
 def _instr_obs() -> str:
@@ -56,12 +56,21 @@ def _instr_gsi_data() -> str:
 
 def _instr_escena() -> str:
     return tr(
-        "Para importar la escena de OBS (la que te pasó el organizador, o la de ejemplo\n"
-        "«example-scene.json» que viene junto a la app):\n"
+        "Para usar la colección Camaraman en OBS:\n"
         "1. En OBS ve a Colección de escenas → Importar.\n"
-        "2. Agrega el archivo .json de la escena y confirma.\n"
+        "2. Agrega el archivo .json de la colección Camaraman y confirma.\n"
         "3. Luego Colección de escenas → elige la colección importada.\n"
-        "Si ya la tenías, revisa que los nombres de las cámaras sean exactamente CAM_EQ1_1 … CAM_EQ2_5.")
+        "Si ya la tenías, revisa que la escena principal se llame como está en Ajustes (por defecto «Juego»).")
+
+
+def _instr_move_filters(scene: str) -> str:
+    return tr(
+        "Los filtros mueven la caja de habilidades según cuántas tenga el jugador.\n"
+        "1. Instala el plugin Move Transition (move-transition 3.x) y reinicia OBS.\n"
+        "2. En la escena «{scene}», clic derecho → Filtros, y agrega tres filtros «Mover fuente» "
+        "(Move Source) llamados exactamente H 4 habilidades, H 5 habilidades y H 6 habilidades.\n"
+        "3. En cada uno pon la posición y la escala que quieres para esa cantidad de habilidades.\n"
+        "4. Pulsa «Revisar todo de nuevo».", scene=scene)
 
 
 def check_title(cid: str) -> str:
@@ -73,17 +82,19 @@ def check_title(cid: str) -> str:
         "keys": tr("Teclas de espectador"),
         "obs": tr("OBS y WebSocket"),
         "scene": tr("Escena de OBS"),
-        "companion_images": tr("Imágenes de Borde y Marco"),
+        "player_scenes": tr("Escenas de jugador"),
+        "move_filters": tr("Filtros de habilidades"),
+        "scene_images": tr("Imágenes de las escenas"),
         "portraits": tr("Retratos"),
     }
     return titles[cid]
 
 
-def _join_and(names: list[str]) -> str:
-    """"Borde", "Borde y Marco", "A, B y C"."""
-    if len(names) <= 1:
-        return "".join(names)
-    return tr("{first} y {last}", first=", ".join(names[:-1]), last=names[-1])
+def _short_list(names: list[str], limit: int = 5) -> str:
+    """"A, B, C" o, si hay muchos, "A, B, C, D, E y 7 más"."""
+    if len(names) <= limit:
+        return ", ".join(names)
+    return tr("{names} y {n} más", names=", ".join(names[:limit]), n=len(names) - limit)
 
 
 class FixRefused(Exception):
@@ -118,35 +129,36 @@ def _res(cid, status, detail, fix_label=None, instructions=None) -> CheckResult:
     return CheckResult(cid, status, check_title(cid), detail, fix_label, instructions)
 
 
-# ---------- OBS: lectura de la escena (solo lectura) ----------
+# ---------- OBS: lectura de la colección (solo lectura) ----------
 
 @dataclass
 class _Scan:
-    state: str                              # "ok" | "disconnected" | "no_scene" | "lost"
-    found: dict | None = None               # nombre -> (contenedor, id)
+    state: str                              # "ok" | "disconnected" | "lost"
+    report: SceneReport | None = None
     error: str = ""
 
     @property
-    def missing_cameras(self) -> list[str]:
-        return [n for n in ALL_CAMERAS if n not in (self.found or {})]
-
-    @property
-    def missing_companions(self) -> list[str]:
-        return [n for n in config.COMPANIONS_V1 if n not in (self.found or {})]
+    def main_found(self) -> bool:
+        return self.report is not None and self.report.main_found
 
 
 def _scan_scene(obs: ObsLink) -> _Scan:
-    """Lee qué hay en la escena SIN tocar nada (load_items() apagaría las cámaras al aire)."""
+    """Lee la colección SIN apagar nada (`refresh_items`; `load_items()` apagaría lo que está al aire)."""
     if not obs.connected:
         return _Scan("disconnected")
     try:
-        return _Scan("ok", obs.find_scene_items(config.SCENE_NAME))
-    except OBSSDKRequestError as e:
-        if e.code == _RESOURCE_NOT_FOUND:
-            return _Scan("no_scene")
-        return _Scan("lost", error=f"{type(e).__name__}: {e}")
+        return _Scan("ok", obs.refresh_items())
     except Exception as e:  # noqa: BLE001 - conexión caída, se informa como pérdida
         return _Scan("lost", error=f"{type(e).__name__}: {e}")
+
+
+def _unchecked(cid: str, ctx: Context, scan: _Scan) -> CheckResult | None:
+    """Resultado "sin revisar" si no hay colección que mirar; None si sí se puede revisar."""
+    if scan.state != "ok":
+        return _res(cid, "warn", tr("Sin revisar: OBS no está conectado"))
+    if not scan.main_found:
+        return _res(cid, "warn", tr("Sin revisar: no existe la escena «{scene}»", scene=ctx.obs.main_scene))
+    return None
 
 
 # ---------- revisiones ----------
@@ -255,69 +267,121 @@ def _check_obs(ctx: Context, scan: _Scan, **_) -> CheckResult:
 
 
 def _check_scene(ctx: Context, scan: _Scan, **_) -> CheckResult:
-    if scan.state in ("disconnected", "lost"):
+    main = ctx.obs.main_scene
+    if scan.state != "ok":
         return _res("scene", "error", tr("No se puede revisar la escena: OBS no está conectado"))
-    if scan.state == "no_scene":
-        return _res("scene", "error",
-                    tr("No existe la escena «{scene}» en OBS", scene=config.SCENE_NAME),
+    if not scan.main_found:
+        return _res("scene", "error", tr("No existe la escena «{scene}» en OBS", scene=main),
                     None, _instr_escena())
-    if scan.missing_cameras:
-        return _res("scene", "error",
-                    tr("Faltan cámaras en la escena: {names}", names=", ".join(scan.missing_cameras)),
-                    None, _instr_escena())
-    if scan.missing_companions:
+    if not scan.report.borde:
         return _res("scene", "warn",
-                    tr("Faltan en la escena: {names} (las cámaras funcionan igual)",
-                       names=", ".join(scan.missing_companions)),
+                    tr("Falta {name} en la escena «{scene}» (las escenas de jugador funcionan igual)",
+                       name=BORDE, scene=main),
                     tr("Arreglar"),
-                    tr("«Arreglar» crea esos elementos vacíos y ocultos en la escena "
-                       "«{scene}». No cambia nada más de la escena.", scene=config.SCENE_NAME))
-    return _res("scene", "ok",
-                tr("«{scene}» tiene las 10 cámaras, Borde y Marco", scene=config.SCENE_NAME))
+                    tr("«Arreglar» crea {name} vacío y oculto en la escena «{scene}». "
+                       "No cambia nada más de la escena.", name=BORDE, scene=main))
+    return _res("scene", "ok", tr("«{scene}» existe y tiene el {name}", scene=main, name=BORDE))
 
 
-def _image_problem(ctx: Context, name: str) -> str | None:
-    """None si la imagen del acompañante existe en esta PC; si no, qué le pasa."""
-    ruta = ctx.obs.get_image_path(name)
-    if not ruta:
-        return tr("{name} sin imagen asignada", name=name)
-    if not Path(ruta).is_file():
-        return tr("{name}: la imagen no existe en esta PC ({path})", name=name, path=ruta)
-    return None
+def _check_player_scenes(ctx: Context, scan: _Scan, **_) -> CheckResult:
+    if (r := _unchecked("player_scenes", ctx, scan)) is not None:
+        return r
+    rep = scan.report
+    partes = []
+    if rep.missing_scenes:
+        partes.append(tr("Faltan escenas: {names}", names=", ".join(rep.missing_scenes)))
+    faltan = [src for scene in config.PLAYER_SCENES for src in rep.missing_sources.get(scene, [])]
+    if faltan:
+        partes.append(tr("Faltan fuentes: {names}", names=", ".join(faltan)))
+    if not partes:
+        return _res("player_scenes", "ok", tr("Las 10 escenas de jugador tienen sus 4 fuentes"))
+    if rep.missing_scenes:
+        return _res("player_scenes", "warn", "; ".join(partes), tr("Crear escenas"),
+                    tr("«Crear escenas» copia la escena «{template}» (con sus 4 fuentes, filtros y "
+                       "posición) para cada escena que falta y la agrega apagada a «{scene}». No toca "
+                       "las escenas que ya existen. Las fuentes que faltan en escenas existentes se "
+                       "agregan a mano en OBS.", template=TEMPLATE_SCENE, scene=ctx.obs.main_scene))
+    return _res("player_scenes", "warn", "; ".join(partes), None,
+                tr("Agrega en OBS las fuentes que faltan (se llaman «Camara · escena», «Foto · escena», "
+                   "«Fondo · escena» y «Nombre · escena»), o copia otra escena de jugador."))
 
 
-def _bundled_image(ctx: Context, name: str) -> Path | None:
-    """`<carpeta de la app>/assets/<nombre>.png`, si existe."""
-    p = Path(ctx.assets_dir) / f"{name}.png"
+def _check_move_filters(ctx: Context, scan: _Scan, **_) -> CheckResult:
+    if (r := _unchecked("move_filters", ctx, scan)) is not None:
+        return r
+    main = ctx.obs.main_scene
+    faltan = [name for n, name in config.HUD_FILTERS.items() if scan.report.filters.get(n) is None]
+    if not faltan:
+        return _res("move_filters", "ok", tr("Los filtros H 4/5/6 habilidades están en «{scene}»", scene=main))
+    return _res("move_filters", "warn",
+                tr("Falta el plugin Move Transition o los filtros H 4/5/6 habilidades en «{scene}»: "
+                   "{names}", scene=main, names=", ".join(faltan)),
+                None, _instr_move_filters(main))
+
+
+@dataclass
+class _ImageProblem:
+    kind: str                # "borde" | "mask" | "fondo"
+    source: str              # fuente (Borde, Camara · X, Fondo · X)
+    filter: str | None       # solo máscaras: nombre del filtro
+    asset: str               # imagen empaquetada que lo arregla
+
+
+def _is_broken(path) -> bool:
+    return not path or not Path(path).is_file()
+
+
+def _image_problems(ctx: Context, report: SceneReport) -> list[_ImageProblem]:
+    """Rutas vacías o que no existen en esta PC: Borde, máscaras de Camara/Foto y archivo de Fondo.
+    Solo lee de OBS."""
+    obs = ctx.obs
+    out: list[_ImageProblem] = []
+    if report.borde and _is_broken(obs.get_image_path(BORDE)):
+        out.append(_ImageProblem("borde", BORDE, None, "Borde.png"))
+    for scene in config.PLAYER_SCENES:
+        if scene in report.missing_scenes:
+            continue
+        faltan = report.missing_sources.get(scene, [])
+        for kind in ("Camara", "Foto"):
+            src = config.source_name(kind, scene)
+            if src in faltan:
+                continue
+            for fname, path in obs.get_mask_paths(src) or []:
+                if _is_broken(path):
+                    out.append(_ImageProblem("mask", src, fname, MASK_ASSET))
+        src = config.source_name("Fondo", scene)
+        if src not in faltan:
+            if _is_broken(obs.get_image_path(src)):
+                out.append(_ImageProblem("fondo", src, None, FONDO_ASSET))
+    return out
+
+
+def _bundled(ctx: Context, asset: str) -> Path | None:
+    p = Path(ctx.assets_dir) / asset
     return p if p.is_file() else None
 
 
-def _check_companion_images(ctx: Context, scan: _Scan, **_) -> CheckResult:
-    if scan.state != "ok":
-        return _res("companion_images", "warn", tr("Sin revisar: OBS no está conectado"))
-    problemas: dict[str, str] = {}
-    for name in config.COMPANIONS_V1:
-        if name in scan.found:
-            p = _image_problem(ctx, name)
-            if p:
-                problemas[name] = p
+def _check_scene_images(ctx: Context, scan: _Scan, **_) -> CheckResult:
+    if (r := _unchecked("scene_images", ctx, scan)) is not None:
+        return r
+    problemas = _image_problems(ctx, scan.report)
     if not ctx.obs.connected:   # se cayó justo al leer las rutas
-        return _res("companion_images", "warn", tr("Sin revisar: se perdió la conexión con OBS"))
+        return _res("scene_images", "warn", tr("Sin revisar: se perdió la conexión con OBS"))
     if not problemas:
-        return _res("companion_images", "ok", tr("Las imágenes de los acompañantes existen"))
-    arreglables = [n for n in problemas if _bundled_image(ctx, n)]
+        return _res("scene_images", "ok", tr("Las imágenes del Borde, las máscaras y los fondos existen"))
+    nombres = list(dict.fromkeys(p.source for p in problemas))
+    arreglables = [p for p in problemas if _bundled(ctx, p.asset)]
     instr = ""
     if arreglables:
-        instr = tr("«Arreglar» le pone a {names} la imagen de la carpeta de la app "
-                   "({folder}); el cambio se hace en vivo, con OBS abierto.",
-                   names=_join_and(arreglables), folder=ctx.assets_dir) + " "
-    for n in problemas:
-        if n not in arreglables:
-            instr += tr("{name} no tiene imagen en la carpeta de la app: copia {name}.png en "
-                        "{folder} y pulsa «Arreglar», elígela con «Buscar… {name}», o ponla en "
-                        "OBS (clic derecho en «{name}» → Propiedades).",
-                        name=n, folder=ctx.assets_dir) + " "
-    return _res("companion_images", "warn", "; ".join(problemas.values()),
+        instr = tr("«Arreglar» apunta esas imágenes a las de la carpeta de la app ({folder}); el cambio "
+                   "se hace en vivo, con OBS abierto. Las rutas que sí existen no se tocan.",
+                   folder=ctx.assets_dir) + " "
+    for asset in dict.fromkeys(p.asset for p in problemas):
+        if _bundled(ctx, asset) is None:
+            instr += tr("Falta {file} en la carpeta de la app ({folder}): cópiala ahí y pulsa "
+                        "«Arreglar», o ponla a mano en OBS.", file=asset, folder=ctx.assets_dir) + " "
+    return _res("scene_images", "warn",
+                tr("Imágenes que están vacías o no existen en esta PC: {names}", names=_short_list(nombres)),
                 tr("Arreglar") if arreglables else None, instr.strip())
 
 
@@ -335,7 +399,8 @@ def run_checks(ctx: Context, *, is_running=paths.is_running) -> list[CheckResult
     plan = [
         ("dota", _check_dota), ("gsi_cfg", _check_gsi_cfg), ("gsi_data", _check_gsi_data),
         ("keys", _check_keys), ("obs", _check_obs), ("scene", _check_scene),
-        ("companion_images", _check_companion_images), ("portraits", _check_portraits),
+        ("player_scenes", _check_player_scenes), ("move_filters", _check_move_filters),
+        ("scene_images", _check_scene_images), ("portraits", _check_portraits),
     ]
     results = []
     for cid, fn in plan:
@@ -408,52 +473,74 @@ def _fix_keys(ctx: Context, is_running) -> str:
 
 def _fix_scene(ctx: Context) -> str:
     scan = _scan_scene(ctx.obs)
-    if scan.state != "ok":
+    if scan.state != "ok" or not scan.main_found:
         raise FixRefused(tr("No puedo arreglar la escena: OBS no está conectado o falta la escena "
-                            "«{scene}»", scene=config.SCENE_NAME))
-    faltan = scan.missing_companions
-    if not faltan:
-        raise FixRefused(tr("No falta ningún acompañante en la escena"))
-    creados = []
-    for name in faltan:
-        if not ctx.obs.create_companion(name, config.SCENE_NAME):
-            if creados:
-                raise FixRefused(tr("OBS no me dejó crear «{name}» (ya creé: {done})",
-                                    name=name, done=", ".join(creados)))
-            raise FixRefused(tr("OBS no me dejó crear «{name}»", name=name))
-        creados.append(name)
-    return tr("Listo: creé {names} en la escena «{scene}», vacío y oculto. "
-              "Ponle su imagen en OBS si hace falta.",
-              names=", ".join(creados), scene=config.SCENE_NAME)
+                            "«{scene}»", scene=ctx.obs.main_scene))
+    if scan.report.borde:
+        raise FixRefused(tr("No falta nada en la escena"))
+    if not ctx.obs.create_companion(BORDE, ctx.obs.main_scene):
+        raise FixRefused(tr("OBS no me dejó crear «{name}»", name=BORDE))
+    return tr("Listo: creé {name} en la escena «{scene}», vacío y oculto. "
+              "Ponle su imagen en OBS si hace falta.", name=BORDE, scene=ctx.obs.main_scene)
 
 
-def _fix_companion_images(ctx: Context) -> str:
+def _fix_player_scenes(ctx: Context) -> str:
     scan = _scan_scene(ctx.obs)
-    if scan.state != "ok":
-        raise FixRefused(tr("No puedo arreglar las imágenes: OBS no está conectado"))
-    con_problema = [n for n in config.COMPANIONS_V1
-                    if n in scan.found and _image_problem(ctx, n) is not None]
-    if not con_problema:
-        raise FixRefused(tr("Los acompañantes ya tienen imagen"))
-    hechos = []
-    for name in con_problema:
-        img = _bundled_image(ctx, name)
-        if img is None:
-            continue
-        if not ctx.obs.set_image_path(name, str(img)):
+    if scan.state != "ok" or not scan.main_found:
+        raise FixRefused(tr("No puedo crear las escenas: OBS no está conectado o falta la escena "
+                            "«{scene}»", scene=ctx.obs.main_scene))
+    rep = scan.report
+    faltan = list(rep.missing_scenes)
+    if not faltan:
+        raise FixRefused(tr("No falta ninguna escena de jugador"))
+    if TEMPLATE_SCENE in rep.missing_scenes or rep.missing_sources.get(TEMPLATE_SCENE):
+        raise FixRefused(tr("No puedo crear las escenas porque falta la plantilla «{template}» o está "
+                            "incompleta. Arréglala en OBS y vuelve a intentar.", template=TEMPLATE_SCENE))
+    try:
+        creadas = ctx.obs.create_player_scenes(faltan)
+    except SceneBuildError as e:
+        hechas = ", ".join(e.created) if e.created else "—"
+        raise FixRefused(tr("OBS no me dejó crear la escena «{scene}» ({error}). Ya creé: {done}. "
+                            "«{scene}» pudo quedar a medias en OBS: revísala o bórrala.",
+                            scene=e.target, error=e.cause, done=hechas)) from e
+    except OSError as e:   # incluye ConnectionError
+        raise FixRefused(tr("Se perdió la conexión con OBS: {error}", error=e)) from e
+    if not creadas:
+        raise FixRefused(tr("Esas escenas ya existen en OBS pero no están dentro de «{scene}»: "
+                            "agrégalas ahí a mano ({names})", scene=ctx.obs.main_scene,
+                            names=", ".join(faltan)))
+    return tr("Listo: creé {names}, apagadas y copiadas de «{template}».",
+              names=", ".join(creadas), template=TEMPLATE_SCENE)
+
+
+def _fix_scene_images(ctx: Context) -> str:
+    scan = _scan_scene(ctx.obs)
+    if scan.state != "ok" or not scan.main_found:
+        raise FixRefused(tr("No puedo arreglar las imágenes: OBS no está conectado o falta la escena "
+                            "«{scene}»", scene=ctx.obs.main_scene))
+    problemas = _image_problems(ctx, scan.report)
+    if not problemas:
+        raise FixRefused(tr("Todas las imágenes ya existen; no cambié nada"))
+    arreglables = [p for p in problemas if _bundled(ctx, p.asset)]
+    if not arreglables:
+        faltan = ", ".join(dict.fromkeys(p.asset for p in problemas))
+        raise FixRefused(tr("No encuentro {files} en la carpeta de la app ({folder}). "
+                            "Cópialo ahí y vuelve a pulsar «Arreglar», o ponlo a mano en OBS.",
+                            files=faltan, folder=ctx.assets_dir))
+    hechos: list[str] = []
+    for p in arreglables:
+        img = str(_bundled(ctx, p.asset))
+        if p.kind == "mask":
+            ok = ctx.obs.set_mask_path(p.source, p.filter, img)
+        else:
+            ok = ctx.obs.set_image_path(p.source, img)
+        if not ok:
             if hechos:
                 raise FixRefused(tr("OBS no me dejó cambiar la imagen de {name} (ya cambié: {done})",
-                                    name=name, done=", ".join(hechos)))
-            raise FixRefused(tr("OBS no me dejó cambiar la imagen de {name}", name=name))
-        hechos.append(name)
-    if not hechos:
-        faltan = ", ".join(f"{n}.png" for n in con_problema)
-        raise FixRefused(tr("No encuentro {files} en la carpeta de la app ({folder}). "
-                            "Cópialo ahí y vuelve a pulsar «Arreglar», o elige la imagen con «Buscar…».",
-                            files=faltan, folder=ctx.assets_dir))
-    cambios = "; ".join(tr("{name} ahora usa {path}", name=n, path=Path(ctx.assets_dir) / (n + ".png"))
-                        for n in hechos)
-    return tr("Listo: {changes}.", changes=cambios)
+                                    name=p.source, done=_short_list(hechos)))
+            raise FixRefused(tr("OBS no me dejó cambiar la imagen de {name}", name=p.source))
+        hechos.append(p.source)
+    return tr("Listo: cambié la imagen de {names}.", names=_short_list(list(dict.fromkeys(hechos))))
 
 
 def apply_fix(check_id: str, ctx: Context, *, is_running=paths.is_running) -> str:
@@ -465,6 +552,8 @@ def apply_fix(check_id: str, ctx: Context, *, is_running=paths.is_running) -> st
         return _fix_keys(ctx, is_running)
     if check_id == "scene":
         return _fix_scene(ctx)
-    if check_id == "companion_images":
-        return _fix_companion_images(ctx)
+    if check_id == "player_scenes":
+        return _fix_player_scenes(ctx)
+    if check_id == "scene_images":
+        return _fix_scene_images(ctx)
     raise FixRefused(tr("La revisión «{id}» no tiene un arreglo automático", id=check_id))

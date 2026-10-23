@@ -98,18 +98,6 @@ EN: dict[str, str] = {
         "and add  -gamestateintegration  (Valve documents it as required; on some PCs it works "
         "without it).\n"
         "4. Close Dota completely and open it again.",
-    "Para importar la escena de OBS (la que te pasó el organizador, o la de ejemplo\n"
-    "«example-scene.json» que viene junto a la app):\n"
-    "1. En OBS ve a Colección de escenas → Importar.\n"
-    "2. Agrega el archivo .json de la escena y confirma.\n"
-    "3. Luego Colección de escenas → elige la colección importada.\n"
-    "Si ya la tenías, revisa que los nombres de las cámaras sean exactamente CAM_EQ1_1 … CAM_EQ2_5.":
-        "To import the OBS scene (the one your organizer gave you, or the example\n"
-        "«example-scene.json» that comes with the app):\n"
-        "1. In OBS, go to Scene Collection → Import.\n"
-        "2. Add the scene's .json file and confirm.\n"
-        "3. Then open Scene Collection → choose the imported collection.\n"
-        "If you already had it, check that the camera names are exactly CAM_EQ1_1 … CAM_EQ2_5.",
 
     # ---- checks: títulos y botones ----
     "Dota instalado": "Dota installed",
@@ -118,11 +106,63 @@ EN: dict[str, str] = {
     "Teclas de espectador": "Spectator hotkeys",
     "OBS y WebSocket": "OBS and WebSocket",
     "Escena de OBS": "OBS scene",
-    "Imágenes de Borde y Marco": "Borde and Marco images",
+    "Agrega en OBS las fuentes que faltan (se llaman «Camara · escena», «Foto · escena», «Fondo · escena» y «Nombre · escena»), o copia otra escena de jugador.": "Add the missing sources in OBS (they are named \"Camara · scene\", \"Foto · scene\", \"Fondo · scene\" and \"Nombre · scene\"), or copy another player scene.",
+    "Crear escenas": "Create scenes",
+    "Esas escenas ya existen en OBS pero no están dentro de «{scene}»: agrégalas ahí a mano ({names})": "Those scenes already exist in OBS but are not inside \"{scene}\": add them there by hand ({names})",
+    "Escenas creadas: {names}": "Scenes created: {names}",
+    "Escenas de jugador": "Player scenes",
+    "Falta el plugin Move Transition o los filtros H 4/5/6 habilidades en «{scene}»: {names}": "The Move Transition plugin or the H 4/5/6 habilidades filters are missing in \"{scene}\": {names}",
+    "Falta {file} en la carpeta de la app ({folder}): cópiala ahí y pulsa «Arreglar», o ponla a mano en OBS.": "{file} is missing from the app folder ({folder}): copy it there and press \"Fix\", or set it by hand in OBS.",
+    "Falta {name} en la escena «{scene}» (las escenas de jugador funcionan igual)": "{name} is missing from the \"{scene}\" scene (the player scenes work anyway)",
+    "Faltan escenas: {names}": "Missing scenes: {names}",
+    "Faltan fuentes: {names}": "Missing sources: {names}",
+    "Filtros de habilidades": "Ability filters",
+    "Imágenes de las escenas": "Scene images",
+    "Imágenes que están vacías o no existen en esta PC: {names}": "Images that are empty or don't exist on this PC: {names}",
+    "Las 10 escenas de jugador tienen sus 4 fuentes": "All 10 player scenes have their 4 sources",
+    "Las imágenes del Borde, las máscaras y los fondos existen": "The Borde image, the masks and the backgrounds exist",
+    "Listo: cambié la imagen de {names}.": "Done: I changed the image of {names}.",
+    "Listo: creé {names}, apagadas y copiadas de «{template}».": "Done: I created {names}, turned off and copied from \"{template}\".",
+    "Listo: creé {name} en la escena «{scene}», vacío y oculto. Ponle su imagen en OBS si hace falta.": "Done: I created {name} in the \"{scene}\" scene, empty and hidden. Set its image in OBS if needed.",
+    "Los filtros H 4/5/6 habilidades están en «{scene}»": "The H 4/5/6 habilidades filters are in \"{scene}\"",
+    "Los filtros mueven la caja de habilidades según cuántas tenga el jugador.\n"
+    "1. Instala el plugin Move Transition (move-transition 3.x) y reinicia OBS.\n"
+    "2. En la escena «{scene}», clic derecho → Filtros, y agrega tres filtros «Mover fuente» (Move Source) llamados exactamente H 4 habilidades, H 5 habilidades y H 6 habilidades.\n"
+    "3. En cada uno pon la posición y la escala que quieres para esa cantidad de habilidades.\n"
+    "4. Pulsa «Revisar todo de nuevo».":
+        "The filters move the abilities box according to how many abilities the player has.\n"
+        "1. Install the Move Transition plugin (move-transition 3.x) and restart OBS.\n"
+        "2. In the \"{scene}\" scene, right-click → Filters, and add three \"Move Source\" filters named exactly H 4 habilidades, H 5 habilidades and H 6 habilidades.\n"
+        "3. In each one set the position and scale you want for that number of abilities.\n"
+        "4. Press \"Check everything again\".",
+    "No encuentro {files} en la carpeta de la app ({folder}). Cópialo ahí y vuelve a pulsar «Arreglar», o ponlo a mano en OBS.": "I can't find {files} in the app folder ({folder}). Copy it there and press \"Fix\" again, or set it by hand in OBS.",
+    "No falta nada en la escena": "Nothing is missing from the scene",
+    "No falta ninguna escena de jugador": "No player scene is missing",
+    "No puedo arreglar las imágenes: OBS no está conectado o falta la escena «{scene}»": "Can't fix the images: OBS is not connected or the \"{scene}\" scene is missing",
+    "No puedo crear las escenas porque falta la plantilla «{template}» o está incompleta. Arréglala en OBS y vuelve a intentar.": "I can't create the scenes because the template \"{template}\" is missing or incomplete. Fix it in OBS and try again.",
+    "No puedo crear las escenas: OBS no está conectado o falta la escena «{scene}»": "Can't create the scenes: OBS is not connected or the \"{scene}\" scene is missing",
+    "OBS no me dejó crear la escena «{scene}» ({error}). Ya creé: {done}. «{scene}» pudo quedar a medias en OBS: revísala o bórrala.": "OBS wouldn't let me create the scene \"{scene}\" ({error}). Already created: {done}. \"{scene}\" may have been left half-built in OBS: check it or delete it.",
+    "Para usar la colección Camaraman en OBS:\n"
+    "1. En OBS ve a Colección de escenas → Importar.\n"
+    "2. Agrega el archivo .json de la colección Camaraman y confirma.\n"
+    "3. Luego Colección de escenas → elige la colección importada.\n"
+    "Si ya la tenías, revisa que la escena principal se llame como está en Ajustes (por defecto «Juego»).":
+        "To use the Camaraman collection in OBS:\n"
+        "1. In OBS, go to Scene Collection → Import.\n"
+        "2. Add the Camaraman collection .json file and confirm.\n"
+        "3. Then open Scene Collection → choose the imported collection.\n"
+        "If you already had it, check that the main scene is named as in Settings (default \"Juego\").",
+    "Se perdió la conexión con OBS: {error}": "Lost the connection with OBS: {error}",
+    "Sin revisar: no existe la escena «{scene}»": "Not checked: the \"{scene}\" scene doesn't exist",
+    "Todas las imágenes ya existen; no cambié nada": "All the images already exist; I changed nothing",
+    "{names} y {n} más": "{names} and {n} more",
+    "«Arreglar» apunta esas imágenes a las de la carpeta de la app ({folder}); el cambio se hace en vivo, con OBS abierto. Las rutas que sí existen no se tocan.": "\"Fix\" points those images to the ones in the app folder ({folder}); the change is made live, with OBS open. Paths that do exist are left alone.",
+    "«Arreglar» crea {name} vacío y oculto en la escena «{scene}». No cambia nada más de la escena.": "\"Fix\" creates {name}, empty and hidden, in the \"{scene}\" scene. It changes nothing else in the scene.",
+    "«Crear escenas» copia la escena «{template}» (con sus 4 fuentes, filtros y posición) para cada escena que falta y la agrega apagada a «{scene}». No toca las escenas que ya existen. Las fuentes que faltan en escenas existentes se agregan a mano en OBS.": "\"Create scenes\" copies the \"{template}\" scene (with its 4 sources, filters and position) for each missing scene and adds it, turned off, to \"{scene}\". It doesn't touch scenes that already exist. Sources missing from existing scenes are added by hand in OBS.",
+    "«{scene}» existe y tiene el {name}": "\"{scene}\" exists and has the {name}",
     "Retratos": "Portraits",
     "Buscar…": "Browse…",
     "Arreglar": "Fix",
-    "{first} y {last}": "{first} and {last}",
 
     # ---- checks: detalles ----
     "No encontré Dota": "Dota not found",
@@ -180,28 +220,8 @@ EN: dict[str, str] = {
     "No pude conectar con OBS: {error}": "Couldn't connect to OBS: {error}",
     "No se puede revisar la escena: OBS no está conectado": "Can't check the scene: OBS is not connected",
     "No existe la escena «{scene}» en OBS": "The \"{scene}\" scene doesn't exist in OBS",
-    "Faltan cámaras en la escena: {names}": "Cameras missing from the scene: {names}",
-    "Faltan en la escena: {names} (las cámaras funcionan igual)":
-        "Missing from the scene: {names} (the cameras still work)",
-    "«Arreglar» crea esos elementos vacíos y ocultos en la escena "
-    "«{scene}». No cambia nada más de la escena.":
-        "\"Fix\" creates those items, empty and hidden, in the \"{scene}\" scene. Nothing else in "
-        "the scene changes.",
-    "«{scene}» tiene las 10 cámaras, Borde y Marco": "\"{scene}\" has all 10 cameras, Borde and Marco",
-    "{name} sin imagen asignada": "{name} has no image assigned",
-    "{name}: la imagen no existe en esta PC ({path})": "{name}: the image doesn't exist on this PC ({path})",
     "Sin revisar: OBS no está conectado": "Not checked: OBS is not connected",
     "Sin revisar: se perdió la conexión con OBS": "Not checked: lost connection to OBS",
-    "Las imágenes de los acompañantes existen": "The Borde and Marco images exist",
-    "«Arreglar» le pone a {names} la imagen de la carpeta de la app "
-    "({folder}); el cambio se hace en vivo, con OBS abierto.":
-        "\"Fix\" gives {names} the image from the app folder ({folder}); the change is made live, "
-        "with OBS open.",
-    "{name} no tiene imagen en la carpeta de la app: copia {name}.png en "
-    "{folder} y pulsa «Arreglar», elígela con «Buscar… {name}», o ponla en "
-    "OBS (clic derecho en «{name}» → Propiedades).":
-        "{name} has no image in the app folder: copy {name}.png to {folder} and click \"Fix\", "
-        "pick one with \"Browse… {name}\", or set it in OBS (right-click \"{name}\" → Properties).",
     "Los 10 ubicados ({n} afinados con tus clicks)": "All 10 located ({n} refined by your clicks)",
 
     # ---- checks: arreglos ----
@@ -229,25 +249,11 @@ EN: dict[str, str] = {
         "(Steam Cloud) when it opens, choose the local version.",
     "No puedo arreglar la escena: OBS no está conectado o falta la escena «{scene}»":
         "Can't fix the scene: OBS is not connected or the \"{scene}\" scene is missing",
-    "No falta ningún acompañante en la escena": "Borde and Marco are already in the scene",
-    "OBS no me dejó crear «{name}» (ya creé: {done})":
-        "OBS refused to create \"{name}\" (already created: {done})",
     "OBS no me dejó crear «{name}»": "OBS refused to create \"{name}\"",
-    "Listo: creé {names} en la escena «{scene}», vacío y oculto. "
-    "Ponle su imagen en OBS si hace falta.":
-        "Done: created {names} in the \"{scene}\" scene, empty and hidden. Set its image in OBS "
-        "if needed.",
-    "No puedo arreglar las imágenes: OBS no está conectado": "Can't fix the images: OBS is not connected",
-    "Los acompañantes ya tienen imagen": "Borde and Marco already have images",
     "OBS no me dejó cambiar la imagen de {name} (ya cambié: {done})":
         "OBS refused to change the image of {name} (already changed: {done})",
     "OBS no me dejó cambiar la imagen de {name}": "OBS refused to change the image of {name}",
-    "No encuentro {files} en la carpeta de la app ({folder}). "
-    "Cópialo ahí y vuelve a pulsar «Arreglar», o elige la imagen con «Buscar…».":
-        "Can't find {files} in the app folder ({folder}). Copy it there and click \"Fix\" again, "
-        "or pick the image with \"Browse…\".",
     "{name} ahora usa {path}": "{name} now uses {path}",
-    "Listo: {changes}.": "Done: {changes}.",
     "La revisión «{id}» no tiene un arreglo automático": "The \"{id}\" check has no automatic fix",
 
     # ---- dota_keys ----

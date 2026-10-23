@@ -24,6 +24,7 @@ _RESOURCE_NOT_FOUND = 600    # código de obs-websocket: la escena/entrada no ex
 
 KINDS = ("Camara", "Foto", "Fondo", "Nombre")   # fuentes que lleva cada escena de jugador
 BORDE = config.COMPANIONS[0]
+MASK_KINDS = ("mask_filter", "mask_filter_v2")   # filtros de máscara de imagen de OBS
 
 
 @dataclass
@@ -573,3 +574,51 @@ class ObsLink:
                 return False
             self._emit(tr("Creado {name} en la escena '{scene}'", name=name, scene=scene))
             return True
+
+    # --- máscaras de los filtros y creación de escenas (revisiones) ----------
+    def get_mask_paths(self, source: str) -> list[tuple[str, str]] | None:
+        """(filtro, image_path) de cada filtro de máscara de la fuente; None si OBS no responde
+        o la fuente no existe."""
+        with self._lock:
+            if not self.connected or self._client is None:
+                return None
+            try:
+                filters = self._client.get_source_filter_list(source).filters
+            except OBSSDKRequestError:
+                return None
+            except Exception as e:  # noqa: BLE001
+                self._fail(e)
+                return None
+            return [(f["filterName"], f.get("filterSettings", {}).get("image_path") or "")
+                    for f in filters if f.get("filterKind") in MASK_KINDS]
+
+    def set_mask_path(self, source: str, filter_name: str, path: str) -> bool:
+        with self._lock:
+            if not self.connected or self._client is None:
+                return False
+            try:
+                self._client.set_source_filter_settings(source, filter_name, {"image_path": path}, True)
+            except Exception as e:  # noqa: BLE001
+                if isinstance(e, OBSSDKRequestError):
+                    self._emit(tr("OBS rechazó un cambio en {name} ({error})", name=source, error=e))
+                else:
+                    self._fail(e)
+                return False
+            return True
+
+    def create_player_scenes(self, targets: list[str]) -> list[str]:
+        """Crea las escenas de jugador que falten copiando la plantilla (ver `scene_builder`).
+        Lanza `SceneBuildError` si falla a medias; una caída de conexión marca `connected = False`."""
+        from .scene_builder import SceneBuildError, clone_player_scenes
+        with self._lock:
+            if not self.connected or self._client is None:
+                raise ConnectionError("OBS no está conectado")
+            try:
+                created = clone_player_scenes(self._client, self.main_scene, targets=targets)
+            except SceneBuildError:
+                raise                  # rechazo de OBS: la conexión sigue viva
+            except Exception as e:  # noqa: BLE001
+                self._fail(e)
+                raise
+            self._emit(tr("Escenas creadas: {names}", names=", ".join(created) or "—"))
+            return created

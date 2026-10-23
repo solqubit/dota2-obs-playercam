@@ -68,8 +68,8 @@ class ChecksMixin:
             out.append(self._button(r.fix_label, lambda r=r: self._confirm_fix(r)))
         elif r.instructions:
             out.append(self._button(tr("Ver instrucciones"), lambda r=r: self._show_instructions(r)))
-        if r.id == "companion_images":
-            for name in config.COMPANIONS_V1:
+        if r.id == "scene_images":
+            for name in config.COMPANIONS:
                 out.append(self._button(tr("Buscar… {name}", name=name),
                                         lambda n=name: self._browse_companion(n)))
         return out
