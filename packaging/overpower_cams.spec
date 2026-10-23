@@ -3,14 +3,31 @@
 # Usage (from the project root):
 #   .venv\Scripts\pyinstaller packaging/overpower_cams.spec --noconfirm
 import os
+import sys
+
+import PySide6
 
 RAIZ = os.path.dirname(SPECPATH)  # SPECPATH = the packaging/ folder
+
+# Resolve native dependencies only from this Python/Qt installation and Windows.
+# A developer's PATH may contain other applications' DLLs: e.g. Poppler's icuuc.dll
+# has the same name as Windows ICU but incompatible exports, breaking Qt at startup.
+# This changes only the build process environment, never the user's saved PATH.
+windows = os.environ.get('SystemRoot', r'C:\Windows')
+os.environ['PATH'] = os.pathsep.join([
+    os.path.join(windows, 'System32'), windows,
+    sys.base_prefix, os.path.join(sys.base_prefix, 'DLLs'),
+    os.path.dirname(PySide6.__file__),
+])
 
 a = Analysis(
     [os.path.join(RAIZ, 'packaging', 'run_app.py')],
     pathex=[RAIZ],
     binaries=[],
-    datas=[(os.path.join(RAIZ, 'assets', 'Borde.png'), 'assets')],
+    datas=[(os.path.join(RAIZ, 'assets', 'Borde.png'), 'assets'),
+           (os.path.join(RAIZ, 'assets', 'Mascara camara.png'), 'assets'),
+           (os.path.join(RAIZ, 'assets', 'Marco sin camara.png'), 'assets'),
+           (os.path.join(RAIZ, 'overpower_cams', 'data', 'innate_abilities.json'), 'overpower_cams/data')],
     hiddenimports=[],
     hookspath=[],
     runtime_hooks=[],

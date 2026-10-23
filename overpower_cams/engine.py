@@ -1,7 +1,8 @@
 """Motor de selección: qué héroe está seleccionado en Dota -> qué cámara de OBS al aire.
 
 Sin variables globales, sin prints y sin E/S: el destino de las cámaras es un `sink` con
-`apply(cam, reason)` y las novedades salen por `on_event`.
+`apply(scene, reason, abilities)` / `retrigger(scene, abilities)` (`abilities` = preset
+4/5/6 del jugador) y las novedades salen por `on_event`.
 
 Hilos: `process` (hilos HTTP de GSI) y `handle_input` (hilo de entrada local) comparten
 un solo lock, igual que el `state_lock` del script (primero el estado, luego OBS).
@@ -14,8 +15,9 @@ import time
 from dataclasses import dataclass, field
 
 from . import dota_keys
-from .config import (CAMERAS_TEAM1, CAMERAS_TEAM2, HIDE_DELAY, LEARN_LOOKBACK,
-                     LIVE_STATES, LOCAL_HOLD, PORTRAIT_PITCH, TOPBAR_MAX_Y)
+from .abilities import count_abilities, hud_preset
+from .config import (HIDE_DELAY, LEARN_LOOKBACK, LIVE_STATES, LOCAL_HOLD, PLAYER_SCENES_TEAM1,
+                     PLAYER_SCENES_TEAM2, PORTRAIT_PITCH, TOPBAR_MAX_Y)
 from .i18n import tr
 from .portraits import PortraitModel
 
@@ -58,14 +60,14 @@ def player_side(team_key, pd):
 
 
 def cameras_on_side(side, radiant_team):
-    """Cámaras del equipo que está en ese bando AHORA (según radiant_team)."""
+    """Escenas de jugador del equipo que está en ese bando AHORA (según radiant_team)."""
     if side == "r":
-        return CAMERAS_TEAM1 if radiant_team == 1 else CAMERAS_TEAM2
-    return CAMERAS_TEAM2 if radiant_team == 1 else CAMERAS_TEAM1
+        return PLAYER_SCENES_TEAM1 if radiant_team == 1 else PLAYER_SCENES_TEAM2
+    return PLAYER_SCENES_TEAM2 if radiant_team == 1 else PLAYER_SCENES_TEAM1
 
 
 def build_roster(data, radiant_team):
-    """-> (jugador 'team2.player0' -> cámara, slot 'r1' -> 'team2.player0', snapshot)."""
+    """-> (jugador 'team2.player0' -> escena, slot 'r1' -> 'team2.player0', snapshot)."""
     new_map, slot_keys = {}, {}
     for team_key, player_key, pd in iter_players(data.get("player")):
         side = player_side(team_key, pd)
@@ -107,6 +109,8 @@ class EngineStatus:
     hero: str | None
     game_state: str | None
     roster: dict[str, str] = field(default_factory=dict)
+    abilities: dict[str, int] = field(default_factory=dict)   # escena -> preset (4/5/6)
+    clock_time: int | None = None   # reloj de la partida (map.clock_time, en segundos)
 
 
 class Engine:
@@ -124,14 +128,17 @@ class Engine:
         self._radiant_team = radiant_team
         self._mode = mode
 
-        self._camera = None                  # cámara al aire (la que se aplicó al sink)
-        self._resolved_map = {}              # 'team2.player0' -> cámara (se reasigna)
+        self._camera = None                  # escena al aire (la que se aplicó al sink)
+        self._air_preset = 4                 # preset de habilidades con el que salió al aire
+        self._abilities = {}                 # 'team2.player0' -> cantidad (se reasigna, no se muta)
+        self._resolved_map = {}              # 'team2.player0' -> escena (se reasigna)
         self._slot_keys = {}                 # 'r1'..'d5' -> 'team2.player0' (se reasigna, no se muta)
         self._hero_names = {}                # 'team2.player0' -> nombre corto (se reasigna)
         self._snapshot = None
         self._current_key = None             # héroe al aire según el motor (incluye predicciones locales)
         self._no_hero_since = None
         self._game_state = None
+        self._clock_time = None
         self._last_gsi_key = None            # la selección según GSI (sin predicciones locales)
         self._last_change_t = 0.0            # cuándo GSI reportó el último cambio de selección
         self._recent_inputs = []             # [(t, kind, value)] de los últimos LEARN_LOOKBACK s
@@ -177,21 +184,51 @@ class Engine:
         roster = {}
         for slot in self._slot_keys:
             roster[slot] = cameras_on_side(slot[0], rt)[int(slot[1:]) - 1]
+        abilities = {scene: self._preset_of(k) for k, scene in self._resolved_map.items()}
         key = self._current_key
         return EngineStatus(
             mode=self._mode, radiant_team=rt, camera=self._camera,
             hero=self._hero_names.get(key, key) if key else None,
-            game_state=self._game_state, roster=roster)
+            game_state=self._game_state, roster=roster, abilities=abilities,
+            clock_time=self._clock_time)
 
     # ---------- internos (con el lock tomado) ----------
 
-    def _apply(self, cam, reason, event):
-        """Llama al sink solo si la cámara cambia."""
+    def _preset_of(self, key):
+        """Preset del HUD (4/5/6) del jugador `key`; sin datos -> 4."""
+        return hud_preset(self._abilities.get(key))
+
+    def _apply(self, cam, reason, event, key=None):
+        """Llama al sink solo si la escena cambia. `key` = jugador de esa escena."""
         if cam == self._camera:
             return
-        self._sink.apply(cam, reason)
+        preset = self._preset_of(key) if cam else hud_preset(None)
+        self._sink.apply(cam, reason, preset)
         self._camera = cam
+        self._air_preset = preset
         self._on_event(event)
+
+    def _read_abilities(self, data):
+        """Anota la cantidad de habilidades de cada jugador que viene en este POST."""
+        found = {}
+        for team_key, player_key, pd in iter_players(data.get("abilities")):
+            n = count_abilities(pd)
+            if n is not None:
+                found[f"{team_key}.{player_key}"] = n
+        if found:
+            self._abilities = {**self._abilities, **found}
+
+    def _retrigger_if_changed(self):
+        """Con el jugador al aire, si cambió su preset de habilidades, reactiva su filtro."""
+        if self._mode == "hidden" or not self._camera:
+            return
+        key = next((k for k, scene in self._resolved_map.items() if scene == self._camera), None)
+        if key is None:
+            return
+        preset = self._preset_of(key)
+        if preset != self._air_preset:
+            self._air_preset = preset
+            self._sink.retrigger(self._camera, preset)
 
     def _process(self, data):
         new_map, slot_keys, snapshot = build_roster(data, self._radiant_team)
@@ -208,10 +245,20 @@ class Engine:
         if names:
             self._hero_names = names
 
+        self._read_abilities(data)
+
         # El estado de la partida se anota siempre (también oculto) para que la ventana no
         # muestre datos viejos.
-        state = safe_dict(data.get("map")).get("game_state")
+        game_map = safe_dict(data.get("map"))
+        state = game_map.get("game_state")
         self._game_state = state
+        clock = game_map.get("clock_time")
+        self._clock_time = clock if isinstance(clock, int) and not isinstance(clock, bool) else None
+
+        self._select(data, state)
+        self._retrigger_if_changed()
+
+    def _select(self, data, state):
 
         if self._mode == "hidden":
             return
@@ -248,7 +295,7 @@ class Engine:
         self._current_key = key
         camera = self._resolved_map.get(key)
         if camera:
-            self._apply(camera, "GSI", f"{_nombre_corto(hero)} → {camera}")
+            self._apply(camera, "GSI", f"{_nombre_corto(hero)} → {camera}", key)
 
     def _learn_portrait(self, slot):
         """GSI reportó que se seleccionó `slot`: si lo único que pasó desde el cambio
@@ -315,10 +362,11 @@ class Engine:
         self._no_hero_since = None
         cam = cameras_on_side(slot[0], self._radiant_team)[int(slot[1:]) - 1]
         if kind == "click":
-            self._apply(cam, f"click {slot}", tr("click retrato {slot} → {cam}", slot=slot, cam=cam))
+            self._apply(cam, f"click {slot}", tr("click retrato {slot} → {cam}", slot=slot, cam=cam),
+                        target)
         else:
             self._apply(cam, tr("tecla {slot}", slot=slot),
-                        tr("tecla {key} → {cam}", key=dota_keys.key_name(value), cam=cam))
+                        tr("tecla {key} → {cam}", key=dota_keys.key_name(value), cam=cam), target)
 
     def _handle_input(self, t, kind, value):
         self._recent_inputs.append((t, kind, value))

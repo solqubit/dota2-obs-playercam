@@ -17,3 +17,6 @@ input_map.json
 docs/_interno/
 .superpowers/
 .claude/
+
+# Captura de GSI local (datos de partidas reales)
+gsi_captura_*.jsonl

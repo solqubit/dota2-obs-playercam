@@ -1,41 +1,45 @@
-"""Ventana principal (boceto B): barra de estado arriba, Revisión a la izquierda y En vivo
-a la derecha.
+"""Ventana principal (boceto D v2): menú lateral a la izquierda, barra de estados y barra en
+vivo arriba, y las páginas Jugadores / Revisión / Escena OBS / Eventos / Ajustes.
 
 Hilos: la ventana vive en el hilo de Qt y nunca espera a OBS ni al motor. Lo que puede
 tardar (revisiones, arreglos, conectar/consultar OBS) corre en hilos aparte y vuelve por la
 señal `_bg_done` (en cola). Las órdenes al motor (modo, bando, teclas) van por un único hilo
 en orden, porque el motor llama a OBS con su lock tomado. Los eventos de otros hilos llegan
 por `EventBus` (también en cola).
+
+Páginas: Jugadores (`page_players`), Revisión (`checks_mixin`), Escena OBS (`page_scene`),
+Eventos y Ajustes; `set_page(key, widget)` cambia una. Si la página visible tiene
+`refresh_live(status)`, se llama cada segundo. Al conectar (o reconectar) con OBS se le mandan
+los nombres y links de los jugadores.
 """
 from __future__ import annotations
 
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import fields
 from pathlib import Path
 
 from PySide6.QtCore import QCoreApplication, QEvent, Qt, QTimer, Signal
-from PySide6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QListWidget, QMainWindow,
-                               QMessageBox, QPushButton, QScrollArea, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QHBoxLayout, QListWidget, QMainWindow, QMessageBox,
+                               QStackedWidget, QVBoxLayout, QWidget)
 
 from .. import config, paths
 from ..checks import CheckResult
 from ..dota_keys import read_player_keys
 from ..i18n import get_language, tr, tr_for
-from ..storage import LiveState
-from .checks_mixin import ChecksMixin
-from .settings_dialog import SettingsDialog
-from .widgets import CameraGrid, app_style, Segmented, detail_label, dot_html, panel
+from ..players import TeamsConfig
+from ..storage import LiveState, Settings
+from .checks_mixin import ChecksMixin, pending_count
+from .page_players import PlayersPage
+from .page_scene import ScenePage
+from .page_settings import SettingsPage
+from .sidebar import PAGE_KEYS, Sidebar
+from .status_bar import LiveBar, StatusBar, ago_text, clock_text, on_air_text, team_names
+from .widgets import app_style, dot_html, page_layout, status_colors
 
 MAX_EVENTS = 50
 AUTO_CHECK_MIN_S = 5.0   # al volver la ventana al frente, no revisar más seguido que esto
-
-
-def input_note(mode: str) -> str:
-    if mode == "auto":
-        return tr("Para cambiar al instante, la app detecta las teclas y clicks mientras "
-                  "Dota está activo.")
-    return tr("Con «Ocultar todo» la app no escucha el teclado ni el mouse.")
 
 
 def first_time_intro() -> str:
@@ -52,11 +56,15 @@ def _keys_signature(keys_file):
         return str(keys_file), None
 
 
-def _hero_display(hero: str | None) -> str:
-    return hero.replace("_", " ").title() if hero else ""
+def _file_signature(path: Path):
+    try:
+        st = path.stat()
+        return st.st_mtime_ns, st.st_size
+    except OSError:
+        return None
 
 
-class MainWindow(ChecksMixin, QMainWindow):
+class Shell(ChecksMixin, QMainWindow):
     _bg_done = Signal(object, object, object)   # (callback, resultado, excepción)
 
     def __init__(self, ctx_factory, engine, obs, gsi, local_input, storage, *, events,
@@ -86,6 +94,9 @@ class MainWindow(ChecksMixin, QMainWindow):
         st = engine.status()
         self._radiant_team = st.radiant_team
         self._mode = st.mode
+        self._names_sig = object()
+        self.teams = TeamsConfig()
+        self.players = {}
 
         self._engine_cmd = ThreadPoolExecutor(max_workers=1, thread_name_prefix="ordenes-motor")
         self._threads: list[threading.Thread] = []
@@ -102,8 +113,9 @@ class MainWindow(ChecksMixin, QMainWindow):
 
         self.setWindowTitle(config.app_name())
         self.setStyleSheet(app_style(self.palette()))
-        self.resize(1040, 660)
-        self._build_ui()
+        self.resize(1240, 780)
+        self.setMinimumSize(980, 620)
+        self._build_ui(ctx)
 
         self._bg_done.connect(self._on_bg_done, Qt.ConnectionType.QueuedConnection)
         events.posted.connect(self._add_event, Qt.ConnectionType.QueuedConnection)
@@ -114,100 +126,103 @@ class MainWindow(ChecksMixin, QMainWindow):
         QTimer.singleShot(0, self.tick)
 
     # ------------------------------------------------------------------ interfaz
-    def _build_ui(self) -> None:
+    def _build_ui(self, ctx) -> None:
         central = QWidget()
-        root = QVBoxLayout(central)
-        root.setContentsMargins(12, 12, 12, 12)
+        central.setObjectName("central")
+        root = QHBoxLayout(central)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
         self.setCentralWidget(central)
+        self.sidebar = Sidebar(self.show_page)
+        self.nav_buttons = self.sidebar.buttons
+        self.checks_badge = self.sidebar.badge
+        root.addWidget(self.sidebar)
 
-        # Barra superior
-        top = QWidget()
-        top.setObjectName("topbar")
-        top.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        bar = QHBoxLayout(top)
-        bar.setContentsMargins(12, 8, 12, 8)
-        bar.setSpacing(18)
-        title = QLabel(tr("Estado"))
-        title.setStyleSheet("font-weight:bold;")
-        bar.addWidget(title)
-        self.obs_label, self.dota_label, self.game_label = QLabel(), QLabel(), QLabel()
-        for lbl in (self.obs_label, self.dota_label, self.game_label):
-            lbl.setTextFormat(Qt.TextFormat.RichText)
-            bar.addWidget(lbl)
-        bar.addStretch(1)
-        self.settings_button = QPushButton("⚙ " + tr("Ajustes"))
-        self.settings_button.clicked.connect(lambda: self.open_settings())
-        bar.addWidget(self.settings_button)
-        root.addWidget(top)
+        main = QVBoxLayout()
+        main.setContentsMargins(8, 18, 20, 18)
+        main.setSpacing(12)
+        root.addLayout(main, 1)
 
-        cols = QHBoxLayout()
-        cols.setSpacing(12)
-        root.addLayout(cols, 1)
+        self.status_bar_widget = StatusBar()
+        self.obs_label, self.obs_detail = self.status_bar_widget.obs.title, self.status_bar_widget.obs.detail
+        self.dota_label, self.dota_detail = self.status_bar_widget.dota.title, self.status_bar_widget.dota.detail
+        self.game_label, self.game_detail = self.status_bar_widget.game.title, self.status_bar_widget.game.detail
+        self.on_air_label = self.status_bar_widget.on_air_label
+        main.addWidget(self.status_bar_widget)
 
-        # Revisión (izquierda)
-        checks_panel, checks_lay = panel(tr("Revisión"))
-        self._rows_box = QWidget()
-        self._rows_lay = QVBoxLayout(self._rows_box)
-        self._rows_lay.setContentsMargins(0, 0, 0, 0)
-        self._rows_lay.addWidget(detail_label(tr("Revisando…")))
-        self._rows_lay.addStretch(1)
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setWidget(self._rows_box)
-        checks_lay.addWidget(scroll, 1)
-        self.recheck_button = QPushButton("↻ " + tr("Revisar todo de nuevo"))
-        self.recheck_button.clicked.connect(lambda: self.run_checks())
-        rb = QHBoxLayout()
-        rb.addStretch(1)
-        rb.addWidget(self.recheck_button)
-        checks_lay.addLayout(rb)
-        cols.addWidget(checks_panel, 11)
-
-        # En vivo (derecha)
-        right = QVBoxLayout()
-        live_panel, live = panel(tr("En vivo"))
-        live.addWidget(QLabel(tr("Bando del Equipo 1")))
-        self.side_selector = Segmented([("Radiant", 1), ("Dire", 2)], self._pick_side)
-        self.radiant_button = self.side_selector.buttons[1]
-        self.dire_button = self.side_selector.buttons[2]
-        live.addWidget(self.side_selector)
-        live.addWidget(detail_label(tr("Cámbialo si la moneda invirtió los lados. "
-                                       "Se recuerda al reabrir.")))
-        live.addSpacing(6)
-        live.addWidget(QLabel(tr("Modo")))
-        self.mode_selector = Segmented([(tr("Automático"), "auto"), (tr("Ocultar todo"), "hidden")],
-                                       self._pick_mode)
+        self.live_bar = LiveBar(self._pick_side, self._pick_mode)
+        self.side_selector = self.live_bar.side_selector
+        self.mode_selector = self.live_bar.mode_selector
         self.auto_button = self.mode_selector.buttons["auto"]
         self.hide_button = self.mode_selector.buttons["hidden"]
-        live.addWidget(self.mode_selector)
-        self.input_note = detail_label()
-        live.addWidget(self.input_note)
-        live.addSpacing(6)
-        self.on_air_label = QLabel()
-        self.on_air_label.setTextFormat(Qt.TextFormat.RichText)
-        live.addWidget(self.on_air_label)
-        self.team1_label, self.team2_label = QLabel(), QLabel()
-        self.team1_label.setObjectName("teamLabel")
-        self.team2_label.setObjectName("teamLabel")
-        self.grid1 = CameraGrid(config.CAMERAS_TEAM1)
-        self.grid2 = CameraGrid(config.CAMERAS_TEAM2)
-        for w in (self.team1_label, self.grid1, self.team2_label, self.grid2):
-            live.addWidget(w)
-        right.addWidget(live_panel)
+        main.addWidget(self.live_bar)
 
-        log_panel, log = panel(tr("Últimos eventos"))
+        self.stack = QStackedWidget()
+        main.addSpacing(6)
+        main.addWidget(self.stack, 1)
+        self.pages: dict[str, QWidget] = {}
+
         self.event_list = QListWidget()
-        self.event_list.setStyleSheet("font-family: Consolas, monospace; font-size: 11px;")
-        log.addWidget(self.event_list)
-        right.addWidget(log_panel, 1)
-        cols.addLayout(right, 10)
+        self.event_list.setObjectName("eventList")
+        events_page, lay = page_layout(tr("Eventos"),
+                                       tr("Lo que pasó en esta sesión, lo más nuevo arriba."))
+        lay.addWidget(self.event_list, 1)
 
-        self.side_selector.set_value(self._radiant_team)
-        self.mode_selector.set_value(self._mode)
+        self.settings_page = SettingsPage(self._settings, self._portraits, detected_dota=ctx.dota,
+                                          on_save=self.apply_settings,
+                                          on_forget_portraits=self._portraits_forgotten)
+        self.players_page = PlayersPage(self.storage, get_obs=lambda: self.obs,
+                                        run_bg=self._run_bg, post_event=self._events.post,
+                                        radiant_team=lambda: self._radiant_team,
+                                        on_teams_changed=lambda: self.refresh_names(force=True))
+        self.scene_page = ScenePage(self)
+        built = {"players": self.players_page,
+                 "checks": self._build_checks_page(),
+                 "scene": self.scene_page,
+                 "events": events_page,
+                 "settings": self.settings_page}
+        for key in PAGE_KEYS:
+            self.stack.addWidget(built[key])
+            self.pages[key] = built[key]
+        self.show_page("players")
+
+        self.refresh_names(force=True)
         self._refresh_live(self.engine.status())
         self._refresh_bar(self._clock())
+
+    # ------------------------------------------------------------------ páginas
+    def set_page(self, key: str, widget: QWidget) -> None:
+        """Cambia la página `key` (misma posición en el menú)."""
+        old = self.pages[key]
+        idx = self.stack.indexOf(old)
+        was_current = self.stack.currentWidget() is old
+        self.stack.insertWidget(idx, widget)
+        self.stack.removeWidget(old)
+        old.deleteLater()
+        self.pages[key] = widget
+        if was_current:
+            self.stack.setCurrentWidget(widget)
+
+    def show_page(self, key: str) -> None:
+        if key == "settings":
+            if self.settings_page.is_dirty():
+                self.settings_page.refresh_dota()   # la carpeta pudo cambiar desde Revisión
+            else:
+                self._reload_settings_page()
+        self.stack.setCurrentWidget(self.pages[key])
+        self.nav_buttons[key].setChecked(True)
+        if hasattr(self, "timer"):                 # ya armada: datos al día sin esperar al timer
+            self._refresh_live(self.engine.status())
+            if key == "scene":
+                self.run_checks()
+
+    def current_page(self) -> str:
+        w = self.stack.currentWidget()
+        return next(k for k, page in self.pages.items() if page is w)
+
+    def _on_checks_rendered(self, results) -> None:
+        self.sidebar.set_pending(pending_count(results))
+        self.scene_page.set_results(results, self.obs)
 
     # ------------------------------------------------------------------ hilos
     def _run_bg(self, fn, callback) -> None:
@@ -253,12 +268,13 @@ class MainWindow(ChecksMixin, QMainWindow):
 
     # ------------------------------------------------------------------ timer
     def tick(self) -> None:
-        """Cada segundo: barra, En vivo, mantenimiento de OBS y recarga de teclas."""
+        """Cada segundo: estados, barra en vivo, mantenimiento de OBS y recarga de teclas."""
         if self._closed:
             return
         now = self._clock()
+        self.refresh_names()
         st = self.engine.status()
-        self._refresh_bar(now)
+        self._refresh_bar(now, st)
         self._refresh_live(st)
         self._maybe_obs_maintenance(now)
         try:
@@ -267,7 +283,21 @@ class MainWindow(ChecksMixin, QMainWindow):
             self._events.post("[ERROR] " + tr("teclas de Dota: {error}", error=e))
         if self.obs.connected != self._was_connected:
             self._was_connected = self.obs.connected
+            if self.obs.connected:
+                self.players_page.push_all()       # OBS pudo cambiar mientras no estaba
             self.run_checks()
+
+    def refresh_names(self, force: bool = False) -> None:
+        """Relee nombres de equipos y jugadores si cambió `players.json` (o si `force`)."""
+        sig = _file_signature(self.storage.base / "players.json")
+        if not force and sig == self._names_sig:
+            return
+        self._names_sig = sig
+        self.teams = self.storage.load_teams()
+        self.players = self.storage.load_players()
+        self.live_bar.set_team_names(self.teams)
+        self.settings_page.set_team_names(self.teams)
+        self.players_page.set_data(self.teams, self.players)
 
     def _obs_state(self) -> tuple[str, str]:
         obs = self.obs
@@ -281,33 +311,28 @@ class MainWindow(ChecksMixin, QMainWindow):
             return "warn", tr("conectando…")
         return "error", tr("reconectando")
 
-    def _refresh_bar(self, now: float) -> None:
-        self.obs_label.setText(dot_html("OBS", *self._obs_state()))
+    def _refresh_bar(self, now: float, st=None) -> None:
+        st = st or self.engine.status()
+        bar = self.status_bar_widget
+        colors = status_colors(self.palette())
+        bar.obs.set(dot_html("OBS", *self._obs_state(), colors), f"{self.obs.host}:{self.obs.port}")
         last = self.gsi.last_post_t
         fresh = last is not None and now - last <= config.GSI_STALE_S
-        self.dota_label.setText(dot_html("Dota", *(("ok", tr("datos llegando")) if fresh
-                                                   else ("warn", tr("sin datos")))))
-        in_game = fresh and self.engine.status().game_state in config.LIVE_STATES
-        self.game_label.setText(dot_html(tr("Partida"), *(("ok", tr("en juego")) if in_game
-                                                          else ("warn", tr("fuera de partida")))))
+        bar.dota.set(dot_html("Dota", *(("ok", tr("datos llegando")) if fresh
+                                        else ("warn", tr("sin datos"))), colors),
+                     ago_text(now - last) if last is not None else tr("nunca"))
+        in_game = fresh and st.game_state in config.LIVE_STATES
+        bar.game.set(dot_html(tr("Partida"), *(("ok", tr("en juego")) if in_game
+                                               else ("warn", tr("fuera de partida"))), colors),
+                     clock_text(st.clock_time if in_game else None))   # reloj solo en juego
 
     def _refresh_live(self, st) -> None:
-        self.side_selector.set_value(self._radiant_team)
-        self.mode_selector.set_value(self._mode)
-        self.input_note.setText(input_note(self._mode))
-        if st.camera:
-            hero = _hero_display(st.hero)
-            self.on_air_label.setText(tr("Al aire: <b>{camera}</b>", camera=st.camera)
-                                      + (f" · {hero}" if hero else ""))
-        elif self._mode == "hidden":
-            self.on_air_label.setText(tr("Al aire: <b>nada</b> (Ocultar todo)"))
-        else:
-            self.on_air_label.setText(tr("Al aire: <b>ninguna cámara</b>"))
-        rt = self._radiant_team
-        self.team1_label.setText(tr("Equipo 1 ({side})", side="Radiant" if rt == 1 else "Dire"))
-        self.team2_label.setText(tr("Equipo 2 ({side})", side="Dire" if rt == 1 else "Radiant"))
-        self.grid1.set_live(st.camera)
-        self.grid2.set_live(st.camera)
+        self.live_bar.set_values(self._radiant_team, self._mode)
+        self.status_bar_widget.set_on_air(on_air_text(st, self.players), bool(st.camera))
+        page = self.stack.currentWidget()
+        refresh = getattr(page, "refresh_live", None)
+        if callable(refresh):
+            refresh(st)
 
     def _maybe_obs_maintenance(self, now: float) -> None:
         """Cada OBS_RETRY_S, en otro hilo y de a uno: reconectar si no hay conexión, o
@@ -363,7 +388,7 @@ class MainWindow(ChecksMixin, QMainWindow):
     def event_lines(self) -> list[str]:
         return [self.event_list.item(i).text() for i in range(self.event_list.count())]
 
-    # ------------------------------------------------------------------ En vivo
+    # ------------------------------------------------------------------ en vivo
     def _save_state(self) -> None:
         try:
             self.storage.save_state(LiveState(self._radiant_team, self._mode))
@@ -376,7 +401,7 @@ class MainWindow(ChecksMixin, QMainWindow):
         self._radiant_team = n
         self._engine_do(self.engine.set_radiant_team, n)
         self._save_state()
-        self._events.post(tr("Bando del Equipo 1: {side}", side="Radiant" if n == 1 else "Dire"))
+        self._events.post(tr("Radiant es: {team}", team=team_names(self.teams)[n - 1]))
         self._refresh_live(self.engine.status())
 
     def _pick_mode(self, mode: str) -> None:
@@ -404,36 +429,42 @@ class MainWindow(ChecksMixin, QMainWindow):
             QMessageBox.warning(self, tr("No se pudo guardar"),
                                 tr("No pude guardar los ajustes: {error}", error=e))
 
+    def _reload_settings_page(self) -> None:
+        self.settings_page.load(self._settings, self._ctx_factory(self.obs).dota)
+
     def open_settings(self, intro: str | None = None) -> None:
-        ctx = self._ctx_factory(self.obs)
-        dlg = SettingsDialog(self._settings, self._portraits, detected_dota=ctx.dota,
-                             intro=intro, parent=self)
-        accepted = dlg.exec() == QDialog.DialogCode.Accepted
-        if dlg.portraits_forgotten:
-            try:
-                self.storage.save_portraits(self._portraits.as_dict())
-            except OSError as e:
-                self._events.post("[ERROR] " + tr("no pude guardar los retratos: {error}", error=e))
-            self._events.post(tr("Retratos olvidados: vuelven a la posición inicial"))
-        if accepted:
-            self.apply_settings(dlg.values())
-        elif dlg.portraits_forgotten:
-            self.run_checks()
+        """Va a Ajustes mostrando los valores guardados (y una explicación, si hay)."""
+        self._reload_settings_page()
+        self.settings_page.set_intro(intro)
+        self.show_page("settings")
+        if intro:
+            self.settings_page.password_edit.setFocus()
 
     def ask_password_first_time(self) -> None:
         """OBS pide contraseña y no hay ninguna guardada: abrir Ajustes con una explicación."""
         if not self._closed and not self._settings.obs_password:
             self.open_settings(intro=first_time_intro())
 
-    def apply_settings(self, new) -> None:
-        """Guarda los ajustes nuevos; si cambió el puerto o la contraseña, crea otro ObsLink."""
+    def _portraits_forgotten(self) -> None:
+        try:
+            self.storage.save_portraits(self._portraits.as_dict())
+        except OSError as e:
+            self._events.post("[ERROR] " + tr("no pude guardar los retratos: {error}", error=e))
+        self._events.post(tr("Retratos olvidados: vuelven a la posición inicial"))
+        self.run_checks()
+
+    def apply_settings(self, new: Settings) -> None:
+        """Guarda los ajustes nuevos; si cambió algo de OBS (dirección, puerto, contraseña o
+        escena principal), crea otro ObsLink."""
         s = self._settings
-        obs_changed = (new.obs_port, new.obs_password) != (s.obs_port, s.obs_password)
-        s.obs_port, s.obs_password = new.obs_port, new.obs_password
-        s.dota_dir, s.default_radiant_team = new.dota_dir, new.default_radiant_team
+        obs_changed = ((new.obs_host, new.obs_port, new.obs_password, new.main_scene)
+                       != (s.obs_host, s.obs_port, s.obs_password, s.main_scene))
         language_changed = new.language is not None and new.language != get_language()
-        s.language = new.language
+        for f in fields(Settings):
+            setattr(s, f.name, getattr(new, f.name))
         self._save_settings()
+        self.settings_page.set_intro(None)
+        self._reload_settings_page()
         if obs_changed:
             old = self.obs
             self.obs = self._obs_factory(s)

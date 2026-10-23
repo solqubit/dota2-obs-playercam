@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+from overpower_cams.config import PLAYER_SCENES
+from overpower_cams.players import PlayerConfig, TeamsConfig
 from overpower_cams.storage import LiveState, Settings, Storage
 
 
@@ -98,3 +100,81 @@ def test_settings_idioma_invalido_queda_en_none(tmp_path):
                                                 encoding="utf-8")
         s = Storage(tmp_path).load_settings()
         assert s.language is None and s.obs_port == 4460
+
+
+def test_settings_v1_sin_main_scene_carga_juego(tmp_path):
+    (tmp_path / "settings.json").write_text(
+        json.dumps({"obs_port": 4455, "obs_password": "", "default_radiant_team": 1}), encoding="utf-8")
+    assert Storage(tmp_path).load_settings().main_scene == "Juego"
+
+
+def test_main_scene_ida_y_vuelta(tmp_path):
+    st = Storage(tmp_path)
+    st.save_settings(Settings(main_scene="Otra"))
+    assert st.load_settings().main_scene == "Otra"
+    (tmp_path / "settings.json").write_text(json.dumps({"main_scene": 5}), encoding="utf-8")
+    assert st.load_settings().main_scene == "Juego"
+
+
+def test_jugadores_por_defecto_son_10(tmp_path):
+    d = Storage(tmp_path).load_players()
+    assert list(d) == PLAYER_SCENES
+    assert all(p == PlayerConfig() for p in d.values())
+    assert Storage(tmp_path).load_teams() == TeamsConfig()
+
+
+def test_players_json_ida_y_vuelta(tmp_path):
+    st = Storage(tmp_path)
+    d = st.load_players()
+    d["1 Mid laner"] = PlayerConfig("Ana", "rtmp://x", "C:/f.png", "photo")
+    st.save_players(d)
+    st.save_teams(TeamsConfig("Alfa", "Beta"))
+    st2 = Storage(tmp_path)
+    assert st2.load_players() == d
+    assert st2.load_teams() == TeamsConfig("Alfa", "Beta")
+    raw = json.loads((tmp_path / "players.json").read_text(encoding="utf-8"))
+    assert raw["teams"] == {"team1": "Alfa", "team2": "Beta"}
+    assert raw["players"]["1 Mid laner"]["use"] == "photo"
+
+
+def test_players_json_roto_da_defaults(tmp_path):
+    (tmp_path / "players.json").write_text("{no json", encoding="utf-8")
+    st = Storage(tmp_path)
+    assert st.load_players() == {s: PlayerConfig() for s in PLAYER_SCENES}
+    assert st.load_teams() == TeamsConfig()
+
+
+def test_players_json_incompleto_o_invalido(tmp_path):
+    (tmp_path / "players.json").write_text(json.dumps({
+        "teams": {"team1": 3, "team2": "B"},
+        "players": {"1 Hard carry": {"name": "Z", "camera_url": 7, "use": "otra"},
+                    "Desconocida": {"name": "Q"}, "2 Offlaner": "x"},
+    }), encoding="utf-8")
+    st = Storage(tmp_path)
+    d = st.load_players()
+    assert list(d) == PLAYER_SCENES
+    assert d["1 Hard carry"] == PlayerConfig(name="Z")
+    assert d["2 Offlaner"] == PlayerConfig()
+    assert st.load_teams() == TeamsConfig("", "B")
+
+
+def test_settings_v1_sin_host_ni_modo_inicial_usan_los_de_siempre(tmp_path):
+    (tmp_path / "settings.json").write_text(
+        json.dumps({"obs_port": 4455, "obs_password": "", "default_radiant_team": 1}), encoding="utf-8")
+    s = Storage(tmp_path).load_settings()
+    assert s.obs_host == "127.0.0.1" and s.default_mode == "auto"
+
+
+def test_host_y_modo_inicial_ida_y_vuelta(tmp_path):
+    st = Storage(tmp_path)
+    st.save_settings(Settings(obs_host="192.168.0.10", default_mode="hidden"))
+    s = st.load_settings()
+    assert (s.obs_host, s.default_mode) == ("192.168.0.10", "hidden")
+    (tmp_path / "settings.json").write_text(json.dumps({"obs_host": " ", "default_mode": "x"}),
+                                            encoding="utf-8")
+    s = st.load_settings()
+    assert (s.obs_host, s.default_mode) == ("127.0.0.1", "auto")
+
+
+def test_estado_sin_guardar_usa_el_modo_inicial(tmp_path):
+    assert Storage(tmp_path).load_state(2, "hidden") == LiveState(2, "hidden")

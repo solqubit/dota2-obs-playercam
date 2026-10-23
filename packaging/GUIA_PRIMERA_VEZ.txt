@@ -1,12 +1,20 @@
 OverPower · Cámaras Dota  -  Guía de primera vez
 ==================================================
 
-Qué hace: cuando miras a un jugador en Dota 2, la app enciende su cámara en
-OBS (y apaga la anterior). Funciona sola; tú solo la dejas abierta.
+Qué hace: cuando miras a un jugador en Dota 2, la app pone al aire en OBS
+la escena de ese jugador (cámara o foto, nombre y borde) y quita la anterior.
+Funciona sola; tú solo la dejas abierta.
 
-Necesitas: Windows 10/11, Dota 2 y OBS Studio instalados, y una escena de
-OBS: la que te envió quien organiza el evento, o la de ejemplo que viene en
-este .zip ("example-scene.json").
+Necesitas: Windows 10/11, Dota 2 y OBS Studio 31.1 o posterior, el plugin "Move
+Transition" para OBS (paso 4) y una colección de escenas de OBS: la que te
+envió quien organiza el evento, o la de ejemplo que viene en este .zip
+(carpeta "Camaraman"; instrucciones completas en Camaraman\LEEME-DEMO.md).
+
+¿Actualizas desde la v1? La v2 usa otra estructura de OBS, así que una escena
+de la v1 no sirve: importa la de ejemplo (paso 5). Tus ajustes de la v1
+(contraseña de OBS, carpeta de Dota, idioma, bando, retratos aprendidos) se
+conservan. Haz las revisiones una vez para que el archivo GSI se actualice y
+también envíe las habilidades.
 
 
 1) INSTALAR
@@ -33,36 +41,70 @@ este .zip ("example-scene.json").
    - Si lo borró, restaura el archivo desde el historial de protección del
      antivirus y luego agrega la exclusión.
 
-4) IMPORTAR LA ESCENA EN OBS
-   - Abre OBS -> menú "Colección de escenas" -> "Importar".
-   - Agrega el archivo .json de la escena y confirma.
-   - Luego "Colección de escenas" -> elige la colección importada
-     (la de ejemplo se llama "Dota Player Cams (example)").
-   - Con la de ejemplo: en cada grupo CAM_EQ1_1 ... CAM_EQ2_5, abre la fuente
-     VDO_... y cambia la URL por el enlace de VDO.Ninja de ese jugador.
+4) INSTALAR EL PLUGIN MOVE TRANSITION (obligatorio, instalador incluido)
+   - Con OBS cerrado, ejecuta Camaraman\Plugins\move-transition-3.2.1-windows-installer.exe.
+     Es el instalador original de Exeldro; también se incluyen su licencia y fuente.
+     Abre OBS después. La app no instala plugins automáticamente.
+   - La app lo usa para ajustar el tamaño de la escena del jugador cuando
+     tiene 5 o 6 habilidades. Sin él, las escenas cambian igual pero no se
+     ajustan.
 
-5) ACTIVAR EL WEBSOCKET DE OBS Y ESCRIBIR LA CONTRASEÑA
+5) IMPORTAR LA ESCENA EN OBS
+   - Ejecuta PREPARAR_DEMO.cmd y elige la carpeta Camaraman extraída del ZIP.
+     Esto enlaza el borde, máscaras y fondos. No modifica tu OBS actual.
+   - Abre OBS -> menú "Colección de escenas" -> "Importar".
+   - Agrega Camaraman\Ecenas\Camaraman-lista.json y confirma.
+   - Luego "Colección de escenas" -> elige la colección importada
+     (la de ejemplo se llama "Camaraman Demo").
+   - Usa lienzo base 3840x2160. La salida puede ser 1080p o QHD sin tocar los filtros.
+     Consulta Camaraman\LEEME-DEMO.md si quieres cambiar el lienzo base.
+   - La colección tiene esta estructura (conserva los nombres):
+       "Juego": la captura de Dota 2, las 10 escenas de jugador y "Borde".
+       10 escenas de jugador: "1 Hard carry", "1 Mid laner", "1 Offlaner",
+       "1 Soft support", "1 Hard support", y lo mismo con "2 ".
+       4 fuentes dentro de cada escena de jugador: "Camara · <escena>",
+       "Foto · <escena>", "Fondo · <escena>" y "Nombre · <escena>"
+       (el separador es espacio, punto medio, espacio).
+       3 filtros Move Source en "Juego": "H 4 habilidades",
+       "H 5 habilidades" y "H 6 habilidades". Guardan la posición y la escala
+       de la escena del jugador con 4, 5 y 6 habilidades. Ajústalos a tu
+       lienzo (el ejemplo está hecho en 3840x2160).
+   - "Borde" es fijo y solo se ve mientras hay una escena de jugador al aire.
+   - Si una colección tiene "Juego" pero le faltan escenas de jugador, la
+     página "Escena OBS" de la app puede crearlas copiando "1 Hard carry"
+     (te pregunta antes).
+
+6) ACTIVAR EL WEBSOCKET DE OBS Y ESCRIBIR LA CONTRASEÑA
    - En OBS: Herramientas -> "Ajustes del servidor WebSocket" -> marca
      "Habilitar servidor WebSocket". Copia la contraseña (o crea una).
-   - En la app: botón "Ajustes" (arriba) -> pega la contraseña en
+   - En la app: página "Ajustes" (menú de la izquierda) -> pega la contraseña en
      "Contraseña de OBS WebSocket" -> "Guardar".
    La contraseña se queda guardada solo en tu PC.
 
-6) SEGUIR LAS REVISIONES DE LA PANTALLA
-   Al abrir, la app revisa OBS, Dota, la escena y las teclas. A la izquierda
-   verás cada punto en verde (bien), amarillo (aviso) o rojo (falta algo), con
+7) SEGUIR LAS REVISIONES DE LA PANTALLA
+   Al abrir, la app revisa OBS, Dota, la escena y las teclas. En la página
+   "Revisión" verás cada punto en verde (bien), amarillo (aviso) o rojo (falta algo), con
    instrucciones para arreglarlo. La app nunca cambia nada sin preguntarte, y
    las teclas de Dota solo se arreglan con Dota cerrado.
    Pulsa "Revisar todo de nuevo" después de cada arreglo hasta que todo esté
    en verde.
-   Imágenes del Borde y el Marco: ponlas como Borde.png y Marco.png en la
-   carpeta OverPowerCamaras\_internal\assets y pulsa "Arreglar".
+   Imágenes (borde, máscara de la cámara y fondo del nombre): vienen con la
+   app, en DotaPlayerCams\_internal\assets (Borde.png, Mascara camara.png y
+   Marco sin camara.png). Pulsa "Arreglar" y la app las pone en OBS.
 
-7) EN LA PARTIDA (panel "En vivo", a la derecha)
-   - "Bando del Equipo 1": elige Radiant o Dire según el sorteo.
-   - "Modo": Automático = la cámara sigue al jugador que miras.
-     "Ocultar todo" = ninguna cámara al aire (la app deja de escuchar
-     teclado y mouse).
+8) COMPLETAR LOS JUGADORES (página "Jugadores")
+   Para cada uno de los 10 jugadores: nombre, link de cámara (VDO.Ninja),
+   link de foto y Cámara / Foto. Los cambios se guardan y se aplican en OBS
+   al momento (nombre, links y Cámara/Foto); si ese jugador está al aire, lo
+   ves enseguida. Si la URL elegida está vacía, cámara y foto quedan ocultas;
+   la posición y escala de la escena se siguen aplicando.
+
+9) EN LA PARTIDA (barra de arriba de la ventana)
+   - "Radiant es": elige qué equipo es Radiant según el sorteo.
+   - "Modo": Automático = la escena sigue al jugador que miras.
+     "Ocultar todo" = nada al aire (la app deja de escuchar teclado y mouse).
+   - Solo hay una escena de jugador encendida a la vez. "Probar" en la página
+     "Escena OBS" activa cada filtro H para que lo ajustes.
    Deja la ventana abierta mientras transmites.
 
 ¿Algo no funciona? Mira primero qué punto está en rojo o amarillo en la

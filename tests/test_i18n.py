@@ -98,7 +98,7 @@ def test_tr_en_ingles_traduce_y_formatea():
     set_language("en")
     assert tr("Ajustes") == "Settings"
     assert tr("Revisión") == "Checks"
-    assert tr("En vivo") == "Live"
+    assert tr("Eventos") == "Events"
     assert tr("Conectado a OBS en {host}:{port}", host="127.0.0.1", port=4455) == \
         "Connected to OBS at 127.0.0.1:4455"
     assert tr("Los 10 ubicados ({n} afinados con tus clicks)", n=3) == \
@@ -162,11 +162,11 @@ def test_app_name_en_los_dos_idiomas():
     assert config.app_name() == "OverPower · Dota Player Cams"
 
 
-def test_instrucciones_de_escena_nombran_el_archivo_de_ejemplo():
+def test_instrucciones_de_escena_nombran_la_coleccion_camaraman():
     from overpower_cams import checks
     for code in ("es", "en"):
         set_language(code)
-        assert "«example-scene.json»" in checks._instr_escena()
+        assert "Camaraman" in checks._instr_escena()
 
 
 def test_la_consola_reconoce_los_eventos_en_ingles():

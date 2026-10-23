@@ -16,7 +16,7 @@ from overpower_cams.engine import Engine
 from overpower_cams.gsi_server import GsiServer, PortInUse
 from overpower_cams.i18n import detect_default, set_language, tr
 from overpower_cams.local_input import LocalInput, set_dpi_awareness
-from overpower_cams.obs_link import ALL_CAMERAS, ObsLink
+from overpower_cams.obs_link import ObsLink
 from overpower_cams.portraits import PortraitModel
 from overpower_cams.storage import LiveState, Storage
 
@@ -24,13 +24,16 @@ KEYS_POLL_S = 2.0
 
 
 class ObsSink:
-    """Destino de cámaras del motor: lo reenvía al ObsLink."""
+    """Destino de escenas del motor: lo reenvía al ObsLink."""
 
     def __init__(self, obs):
         self.obs = obs
 
-    def apply(self, cam, reason):
-        self.obs.apply(cam, reason)
+    def apply(self, scene, reason, abilities=4):
+        self.obs.apply(scene, reason, abilities)
+
+    def retrigger(self, scene, abilities):
+        self.obs.retrigger(scene, abilities)
 
 
 def _prefix(template):
@@ -84,18 +87,25 @@ def startup_lines(state):
 
 
 def show_items(obs):
-    """Lista las cámaras encontradas en OBS (y avisa de lo que falta)."""
+    """Avisa de lo que falta en la colección de OBS (escenas de jugador, fuentes, filtros, Borde)."""
     report = obs.report
     if report is None:
         return
-    if not report.scene_found:
-        print("[OBS] " + tr("La escena '{scene}' no existe en OBS", scene=config.SCENE_NAME) + ".")
+    if not report.main_found:
+        print("[OBS] " + tr("La escena '{scene}' no existe en OBS", scene=obs.main_scene) + ".")
         return
-    for name in ALL_CAMERAS + config.COMPANIONS:
-        if name in report.missing_cameras or name in report.missing_companions:
-            print("  [WARN] " + tr("{name} no está en la escena", name=name))
-        else:
-            print(f"  [OK] {name}")
+    print("[OBS] " + tr("{n}/10 escenas de jugador encontradas",
+                        n=len(config.PLAYER_SCENES) - len(report.missing_scenes)))
+    faltas = list(report.missing_scenes)
+    for names in report.missing_sources.values():
+        faltas += names
+    faltas += [config.HUD_FILTERS[n] for n, f in sorted(report.filters.items()) if f is None]
+    if not report.borde:
+        faltas.append("Borde")
+    for name in faltas:
+        print("  [WARN] " + tr("{name} no está en la escena", name=name))
+    if not faltas:
+        print("  [OK] " + tr("Fuentes de OBS cargadas"))
 
 
 def background(engine, obs, steam):
@@ -137,12 +147,13 @@ def main() -> int:
     settings = storage.load_settings()
     set_language(settings.language or detect_default())   # antes de cualquier texto
     print("=== Dota 2 GSI -> OBS ===")
-    state = storage.load_state(settings.default_radiant_team)
+    state = storage.load_state(settings.default_radiant_team, settings.default_mode)
     portraits = PortraitModel(storage.load_portraits(Path(__file__).resolve().parent / "input_map.json"))
     steam = paths.steam_path()
     keys = read_player_keys(paths.dota_keys_file(steam))
 
-    obs = ObsLink(config.OBS_HOST, settings.obs_port, settings.obs_password,
+    obs = ObsLink(settings.obs_host, settings.obs_port, settings.obs_password,
+                  main_scene=settings.main_scene, players_provider=storage.load_players,
                   on_event=lambda text: print(f"[OBS] {text}"))
     engine = Engine(ObsSink(obs), portraits, keys, radiant_team=state.radiant_team, mode=state.mode,
                     on_event=lambda text: print(engine_event(text)),

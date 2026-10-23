@@ -1,17 +1,21 @@
-"""Sección Revisión de la ventana principal: correr las revisiones en otro hilo, dibujar
-una fila por resultado y sus botones (arreglar con confirmación, instrucciones, Buscar…).
+"""Página Revisión de la ventana: correr las revisiones en otro hilo, dibujar una fila por
+resultado y sus botones (arreglar con confirmación, instrucciones, Buscar…) y avisar cuántas
+quedan pendientes (la insignia del menú).
 
-Es un mixin de MainWindow: usa `_ctx_factory`, `obs`, `_settings`, `_events`, `_closed`,
-`_is_running`, `_fix_running`, `_run_bg`, `_reload_keys`, `_save_settings` y los widgets `_rows_lay` y
-`recheck_button` que arma la ventana."""
+Es un mixin de Shell: usa `_ctx_factory`, `obs`, `_settings`, `_events`, `_closed`,
+`_is_running`, `_fix_running`, `_run_bg`, `_reload_keys`, `_save_settings` y
+`_on_checks_rendered(results)`. `_build_checks_page()` arma la página y sus widgets
+`_rows_lay` y `recheck_button`."""
 from pathlib import Path
 
-from PySide6.QtWidgets import QFileDialog, QMessageBox, QPushButton
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (QFileDialog, QMessageBox, QPushButton, QScrollArea, QVBoxLayout,
+                               QWidget)
 
 from .. import checks, config, paths
 from ..checks import CheckResult, FixRefused
 from ..i18n import tr
-from .widgets import CheckRow, not_dota_msg
+from .widgets import CheckRow, card, detail_label, not_dota_msg, page_layout
 
 
 def image_filter() -> str:
@@ -19,7 +23,33 @@ def image_filter() -> str:
             + tr("Todos los archivos") + " (*)")
 
 
+def pending_count(results) -> int:
+    """Revisiones con aviso o error (el número de la insignia de Revisión)."""
+    return sum(1 for r in results if r.status in ("warn", "error"))
+
+
 class ChecksMixin:
+    def _build_checks_page(self) -> QWidget:
+        self.recheck_button = QPushButton("↻ " + tr("Revisar todo de nuevo"))
+        self.recheck_button.clicked.connect(lambda: self.run_checks())
+        page, lay = page_layout(tr("Revisión"),
+                                tr("Lo que la app necesita para funcionar. Nada se cambia sin "
+                                   "preguntarte."), self.recheck_button)
+        frame, card_lay = card(margins=(16, 6, 12, 6))
+        self._rows_box = QWidget()
+        self._rows_lay = QVBoxLayout(self._rows_box)
+        self._rows_lay.setContentsMargins(0, 0, 4, 0)
+        self._rows_lay.setSpacing(0)
+        self._rows_lay.addWidget(detail_label(tr("Revisando…")))
+        self._rows_lay.addStretch(1)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setWidget(self._rows_box)
+        card_lay.addWidget(scroll, 1)
+        lay.addWidget(frame, 1)
+        return page
+
     def run_checks(self) -> None:
         if self._closed:
             return
@@ -54,6 +84,7 @@ class ChecksMixin:
         for r in results:
             self._rows_lay.addWidget(CheckRow(r, self._row_buttons(r)))
         self._rows_lay.addStretch(1)
+        self._on_checks_rendered(results)
 
     def _button(self, text: str, slot) -> QPushButton:
         b = QPushButton(text)
@@ -68,7 +99,7 @@ class ChecksMixin:
             out.append(self._button(r.fix_label, lambda r=r: self._confirm_fix(r)))
         elif r.instructions:
             out.append(self._button(tr("Ver instrucciones"), lambda r=r: self._show_instructions(r)))
-        if r.id == "companion_images":
+        if r.id == "scene_images":
             for name in config.COMPANIONS:
                 out.append(self._button(tr("Buscar… {name}", name=name),
                                         lambda n=name: self._browse_companion(n)))
