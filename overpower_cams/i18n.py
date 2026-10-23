@@ -289,6 +289,7 @@ EN: dict[str, str] = {
     "OBS rechazó cambiar la imagen de {name} ({error})": "OBS refused to change the image of {name} ({error})",
     "OBS rechazó crear {name} ({error})": "OBS refused to create {name} ({error})",
     "Creado {name} en la escena '{scene}'": "Created {name} in the '{scene}' scene",
+    "No se pudo crear la escena '{scene}': {error}": "Could not create the '{scene}' scene: {error}",
 
     # ---- ventana: Revisión ----
     "Imágenes": "Images",

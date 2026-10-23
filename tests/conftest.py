@@ -137,6 +137,10 @@ def filtros_camaraman(omitir=()):
                       for n, v in reales.items() if n not in omitir}}
 
 
+# Claves de GetSceneItemTransform que SetSceneItemTransform rechaza (OBS las calcula)
+READONLY_TRANSFORM_KEYS = frozenset({"sourceWidth", "sourceHeight", "width", "height"})
+
+
 class FakeObsClient:
     """Cliente OBS falso, con la misma API que `obsws_python.ReqClient` (la parte que usa la app).
 
@@ -174,6 +178,7 @@ class FakeObsClient:
         self.named_calls = []
         self.ops = []
         self.created = []
+        self.input_kinds = {}     # entrada -> tipo (por defecto "browser_source")
         self.transforms = {}      # (contenedor, id) -> último transform pedido
         self._generation = 0
         self._assign_ids()
@@ -259,7 +264,9 @@ class FakeObsClient:
         self._check()
         if name not in self.scenes or name in self.removed:
             raise OBSSDKRequestError("GetSceneItemList", 600, "No scene was found")
-        return SimpleNamespace(scene_items=[dict(i) for i in self._containers[name]])
+        return SimpleNamespace(scene_items=[
+            {**i, "sceneItemEnabled": self.enabled.get((name, i["sceneItemId"]), True)}
+            for i in self._containers[name]])
 
     def get_group_scene_item_list(self, name):
         self._check()
@@ -282,17 +289,47 @@ class FakeObsClient:
         key = (scene_name, item_id)
         if key not in self._names:
             raise OBSSDKRequestError("SetSceneItemTransform", 600, "No scene items were found")
-        self.transforms[key] = dict(transform)
+        if READONLY_TRANSFORM_KEYS & set(transform):
+            raise OBSSDKRequestError("SetSceneItemTransform", 400, "read-only transform key")
+        for k in ("boundsWidth", "boundsHeight"):
+            if k in transform and transform[k] < 1:
+                raise OBSSDKRequestError("SetSceneItemTransform", 400, f"{k} must be >= 1")
+        self.transforms[key] = {**self.transforms.get(key, {}), **transform}
         self.ops.append(("transform", scene_name, self._names[key], dict(transform)))
+
+    def get_scene_item_transform(self, scene_name, item_id):
+        self._check()
+        key = (scene_name, item_id)
+        if key not in self._names:
+            raise OBSSDKRequestError("GetSceneItemTransform", 600, "No scene items were found")
+        base = {"positionX": 0.0, "positionY": 0.0, "scaleX": 1.0, "scaleY": 1.0, "rotation": 0.0,
+                "boundsType": "OBS_BOUNDS_NONE", "boundsWidth": 1.0, "boundsHeight": 1.0,
+                "sourceWidth": 1920.0, "sourceHeight": 1080.0, "width": 1920.0, "height": 1080.0}
+        return SimpleNamespace(scene_item_transform={**base, **self.transforms.get(key, {})})
+
+    def _source_exists(self, name):
+        """Escena, entrada o fuente de alguna escena: en OBS los nombres son únicos en la colección."""
+        return (name in self.scenes or name in self.inputs
+                or any(n == name for n in self._names.values()))
 
     def get_source_filter_list(self, name):
         self._check()
-        if name not in self.scenes or name in self.removed:
+        if not self._source_exists(name) or name in self.removed:
             raise OBSSDKRequestError("GetSourceFilterList", 600, "No source was found")
         return SimpleNamespace(filters=[
             {"filterName": n, "filterKind": f["kind"], "filterEnabled": f["enabled"],
              "filterIndex": i, "filterSettings": dict(f["settings"])}
             for i, (n, f) in enumerate(self.filters.get(name, {}).items())])
+
+    def create_source_filter(self, sourceName, filterName, filterKind, filterSettings=None):
+        self._check()
+        if not self._source_exists(sourceName):
+            raise OBSSDKRequestError("CreateSourceFilter", 600, "No source was found")
+        if filterName in self.filters.get(sourceName, {}):
+            raise OBSSDKRequestError("CreateSourceFilter", 601, "A filter already exists")
+        self.filters.setdefault(sourceName, {})[filterName] = {
+            "enabled": True, "kind": filterKind, "settings": dict(filterSettings or {})}
+        self.ops.append(("filter_create", sourceName, filterName))
 
     def get_source_filter(self, source_name, filter_name):
         self._check()
@@ -325,7 +362,8 @@ class FakeObsClient:
         self._check()
         if name not in self.inputs:
             raise OBSSDKRequestError("GetInputSettings", 600, "No input was found")
-        return SimpleNamespace(input_settings=dict(self.inputs[name]))
+        return SimpleNamespace(input_settings=dict(self.inputs[name]),
+                               input_kind=self.input_kinds.get(name, "browser_source"))
 
     def set_input_settings(self, name, settings, overlay):
         self._check()
@@ -336,15 +374,40 @@ class FakeObsClient:
         else:
             self.inputs[name] = dict(settings)
 
-    def create_input(self, sceneName, inputName, inputKind, inputSettings, sceneItemEnabled):
+    def create_scene(self, name):
         self._check()
+        if self._source_exists(name):
+            raise OBSSDKRequestError("CreateScene", 601, "A source already exists by that scene name")
+        self.scenes[name] = {}
+        self._containers[name] = []
+        self.ops.append(("scene_create", name))
+
+    def _add_item(self, scene, name, enabled):
         item_id = self._next_id
         self._next_id += 1
-        self._containers[sceneName].append(
-            {"sourceName": inputName, "sceneItemId": item_id, "isGroup": False})
-        self._names[(sceneName, item_id)] = inputName
-        self.enabled[(sceneName, item_id)] = sceneItemEnabled
+        self._containers[scene].append({"sourceName": name, "sceneItemId": item_id, "isGroup": False})
+        self.scenes[scene][name] = None
+        self._names[(scene, item_id)] = name
+        self.enabled[(scene, item_id)] = enabled
+        return item_id
+
+    def create_scene_item(self, sceneName, sourceName, sceneItemEnabled=True):
+        self._check()
+        if sceneName not in self.scenes or not self._source_exists(sourceName):
+            raise OBSSDKRequestError("CreateSceneItem", 600, "No scene/source was found")
+        item_id = self._add_item(sceneName, sourceName, sceneItemEnabled)
+        self.ops.append(("item_create", sceneName, sourceName, sceneItemEnabled))
+        return SimpleNamespace(scene_item_id=item_id)
+
+    def create_input(self, sceneName, inputName, inputKind, inputSettings, sceneItemEnabled):
+        self._check()
+        if sceneName not in self.scenes:
+            raise OBSSDKRequestError("CreateInput", 600, "No scene was found")
+        if self._source_exists(inputName):
+            raise OBSSDKRequestError("CreateInput", 601, "A source already exists by that input name")
+        item_id = self._add_item(sceneName, inputName, sceneItemEnabled)
         self.inputs[inputName] = dict(inputSettings)
+        self.input_kinds[inputName] = inputKind
         self.created.append((sceneName, inputName, inputKind, dict(inputSettings), sceneItemEnabled))
         return SimpleNamespace(scene_item_id=item_id)
 
