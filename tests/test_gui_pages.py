@@ -7,7 +7,7 @@ os.environ["QT_QPA_PLATFORM"] = "offscreen"   # antes de crear QApplication
 from dataclasses import replace  # noqa: E402
 
 import pytest  # noqa: E402
-from PySide6.QtWidgets import QApplication, QLabel, QMessageBox  # noqa: E402
+from PySide6.QtWidgets import QLabel, QMessageBox  # noqa: E402
 
 from overpower_cams import app, i18n, paths, scene_builder  # noqa: E402
 from overpower_cams.config import PLAYER_SCENES, source_name  # noqa: E402
@@ -26,11 +26,6 @@ class FakeListener:
 
     def stop(self):
         pass
-
-
-@pytest.fixture
-def qapp():
-    return QApplication.instance() or QApplication([])
 
 
 @pytest.fixture
