@@ -217,7 +217,13 @@ class ScenePage(QWidget):
                                 else tr("Falta en «{scene}»", scene=main))
             for n, line in self.filter_lines.items():
                 preset = rep.filters.get(n)
-                line.set("ok" if preset is not None else "error", preset_text(preset, main))
+                if preset is None:
+                    status = "error"
+                elif rep.move_plugin is not True or rep.filter_kinds.get(n) != config.MOVE_FILTER_KIND:
+                    status = "warn"            # no se confirmó Move Source cargado
+                else:
+                    status = "ok"
+                line.set(status, preset_text(preset, main))
             for scene in config.PLAYER_SCENES:
                 missing = rep.missing_sources.get(scene, [])
                 if scene in rep.missing_scenes:
@@ -264,7 +270,7 @@ class ScenePage(QWidget):
         mf = self._results.get("move_filters")
         self.filters_help_button.setVisible(bool(mf and mf.status != "ok" and mf.instructions))
         self.create_button.setEnabled(rep is not None and bool(rep.missing_scenes)
-                                      and not self._busy)
+                                      and not self._busy and not self._host._fix_running)
         images = self._results.get("scene_images")
         self.borde_fix_button.setVisible(bool(images and images.fix_label))
         self.borde_fix_button.setToolTip((images.instructions or "") if images else "")

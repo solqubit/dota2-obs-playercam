@@ -11,10 +11,11 @@ from PySide6.QtWidgets import QLabel, QMessageBox  # noqa: E402
 
 from overpower_cams import app, i18n, paths, scene_builder  # noqa: E402
 from overpower_cams.config import PLAYER_SCENES, source_name  # noqa: E402
+from overpower_cams.gui.widgets import CheckRow  # noqa: E402
 from overpower_cams.players import PlayerConfig, TeamsConfig  # noqa: E402
 from overpower_cams.scene_builder import SceneBuildError  # noqa: E402
 from overpower_cams.storage import Storage  # noqa: E402
-from tests.conftest import FakeObsClient, filtros_camaraman, layout_camaraman  # noqa: E402
+from conftest import FakeObsClient, filtros_camaraman, gsi_payload, layout_camaraman  # noqa: E402
 
 
 class FakeListener:
@@ -178,6 +179,100 @@ def test_sin_obs_guarda_avisa_y_lo_aplica_al_reconectar(qapp, appdata):
         win.close()
 
 
+def test_obs_usa_los_jugadores_en_memoria_sin_leer_players_json(qapp, appdata, monkeypatch):
+    """Leer players.json bajo el lock de OBS chocaba con el os.replace de la ventana (Windows)."""
+    fake = _fake()
+    parts, win = _armar(fake)
+    try:
+        _conectar(qapp, win)
+        row = win.players_page.rows["1 Offlaner"]
+        _editar(row.camera_edit, "https://vdo.ninja/?view=c")
+        _esperar(qapp, win)
+
+        def no_leer(*a, **k):
+            raise AssertionError("OBS no debe leer players.json")
+
+        def sin_disco():
+            monkeypatch.setattr(parts.storage, "load_players", no_leer)
+            monkeypatch.setattr(parts.storage, "_read_json", no_leer)
+        sin_disco()
+        parts.obs.apply("1 Offlaner", "test")
+        assert fake.is_enabled("Camara · 1 Offlaner", "1 Offlaner") is True
+        monkeypatch.undo()                                   # guardar sí escribe el archivo
+        row.use_selector.buttons["photo"].click()            # sin link de foto: se apaga todo
+        _esperar(qapp, win)
+        sin_disco()
+        assert parts.obs.refresh_player_mode("1 Offlaner")
+        assert fake.is_enabled("Camara · 1 Offlaner", "1 Offlaner") is False
+        assert fake.is_enabled("Foto · 1 Offlaner", "1 Offlaner") is False
+    finally:
+        monkeypatch.undo()
+        win.close()
+
+
+def test_guardar_que_falla_deshace_el_cambio_y_se_reintenta(qapp, appdata, monkeypatch):
+    fake = _fake()
+    parts, win = _armar(fake)
+    try:
+        _conectar(qapp, win)
+        page = win.players_page
+        row = page.rows["1 Mid laner"]
+        real_save = parts.storage.save_players
+
+        def falla(d):
+            raise PermissionError(13, "archivo en uso")
+        monkeypatch.setattr(parts.storage, "save_players", falla)
+        monkeypatch.setattr(parts.storage, "save_teams", falla)
+        _editar(row.name_edit, "SumaiL")
+        _esperar(qapp, win)
+        assert row.name_edit.text() == ""                    # vuelve a lo guardado
+        assert any("no pude guardar los jugadores" in line for line in win.event_lines())
+        assert fake.inputs["Nombre · 1 Mid laner"]["text"] == "1 Mid laner"   # no llegó a OBS
+        assert parts.storage.players_snapshot()["1 Mid laner"].name == ""
+        row.use_selector.buttons["photo"].click()
+        assert row.use_selector.buttons["camera"].isChecked()
+        assert parts.storage.players_snapshot()["1 Mid laner"].use == "camera"
+        _editar(page.team_edits[1], "Liquid")
+        assert page.team_edits[1].text() == ""
+        monkeypatch.setattr(parts.storage, "save_players", real_save)
+        _editar(row.name_edit, "SumaiL")                    # la misma edición, otra vez
+        _esperar(qapp, win)
+        assert parts.storage.load_players()["1 Mid laner"].name == "SumaiL"
+        assert fake.inputs["Nombre · 1 Mid laner"]["text"] == "SumaiL"
+    finally:
+        win.close()
+
+
+def test_revision_de_fuentes_se_actualiza_al_editar_un_jugador(qapp, appdata):
+    fake = _fake()
+    parts, win = _armar(fake)
+    try:
+        _conectar(qapp, win)
+        r = next(r for r in win.check_results if r.id == "player_sources")
+        assert r.status == "warn" and "1 Hard carry: Cámara sin URL" in r.detail
+        badge = int(win.checks_badge.text())
+        lecturas = []
+        for metodo in ("get_scene_item_list", "get_source_filter_list", "get_source_filter_kind_list",
+                       "get_input_settings"):
+            original = getattr(fake, metodo)
+            setattr(fake, metodo, lambda *a, _m=metodo, _o=original: (lecturas.append(_m), _o(*a))[1])
+        # todos con cámara: la revisión pasa a verde sin volver a leer OBS
+        for i, row in enumerate(win.players_page.rows.values()):
+            _editar(row.camera_edit, f"https://vdo.ninja/?view=j{i}")
+        _editar(win.players_page.team_edits[1], "Liquid")
+        _esperar(qapp, win)
+        win.tick()
+        _esperar(qapp, win)
+        assert lecturas == []                                # ningún escaneo de OBS
+        r = next(r for r in win.check_results if r.id == "player_sources")
+        assert r.status == "ok"
+        filas = [w for w in win._rows_box.findChildren(CheckRow) if w.result.id == "player_sources"]
+        assert len(filas) == 1 and filas[0].result is r and filas[0].icon.status == "ok"
+        assert int(win.checks_badge.text()) == badge - 1
+    finally:
+        win.close()
+
+
 def test_habilidades_y_fila_al_aire_salen_del_motor(qapp, appdata):
     parts, win = _armar(_fake())
     try:
@@ -195,6 +290,21 @@ def test_habilidades_y_fila_al_aire_salen_del_motor(qapp, appdata):
         assert "●" not in rows["1 Hard carry"].role_label.text()
         page.refresh_live(replace(st, camera=None))
         assert rows["1 Mid laner"].property("onair") is False
+    finally:
+        win.close()
+
+
+def test_sin_datos_de_habilidades_la_columna_muestra_raya(qapp, appdata):
+    parts, win = _armar(_fake())
+    try:
+        parts.engine.process(gsi_payload("r2", abilities={"1 Offlaner": 6}))
+        page = win.players_page
+        page.refresh_live(parts.engine.status())
+        assert page.rows["1 Mid laner"].abilities_label.text() == "—"      # al aire, sin datos
+        assert page.rows["1 Offlaner"].abilities_label.text() == "6"
+        from overpower_cams.gui.status_bar import on_air_text
+        texto = on_air_text(parts.engine.status(), {})
+        assert texto.startswith("Al aire: 1 Mid laner") and "habilidades" not in texto
     finally:
         win.close()
 
@@ -242,6 +352,26 @@ def test_probar_activa_el_filtro_y_se_desactiva_sin_obs_o_sin_filtro(qapp, appda
         win.close()
 
 
+def test_filtros_sin_plugin_o_de_otro_tipo_no_salen_en_verde(qapp, appdata):
+    fake = _fake()
+    fake.filters["Juego"]["H 5 habilidades"]["kind"] = "color_filter"
+    parts, win = _armar(fake)
+    try:
+        _conectar(qapp, win)
+        lines = win.scene_page.filter_lines
+        assert lines[4].icon.status == "ok" and lines[5].icon.status == "warn"
+        fake.filter_kinds = ["color_filter"]                 # OBS sin Move Transition
+        win.run_checks()
+        _esperar(qapp, win)
+        assert all(line.icon.status != "ok" for line in lines.values())
+        fake.filter_kinds = None                             # tampoco confirmar lo desconocido
+        win.run_checks()
+        _esperar(qapp, win)
+        assert all(line.icon.status != "ok" for line in lines.values())
+    finally:
+        win.close()
+
+
 def test_crear_escenas_pide_confirmacion_y_copia_la_plantilla(qapp, appdata, monkeypatch):
     fake = _fake(sin_escenas=("2 Offlaner", "2 Hard support"))
     llamadas, preguntas, avisos = [], [], []
@@ -275,6 +405,22 @@ def test_crear_escenas_pide_confirmacion_y_copia_la_plantilla(qapp, appdata, mon
         assert "2 Offlaner" in fake.scenes and ("scene_create", "2 Hard support") in fake.ops
         assert avisos and avisos[-1][0] == "info"
         assert not page.create_button.isEnabled()           # ya no falta nada
+    finally:
+        win.close()
+
+
+def test_crear_escenas_se_desactiva_mientras_corre_otro_arreglo(qapp, appdata):
+    parts, win = _armar(_fake(sin_escenas=("2 Offlaner",)))
+    try:
+        _conectar(qapp, win)
+        page = win.scene_page
+        assert page.create_button.isEnabled()
+        win._fix_running = True                              # p. ej. un arreglo de Revisión
+        page.refresh_live(None)
+        assert not page.create_button.isEnabled()
+        win._fix_running = False
+        page.refresh_live(None)
+        assert page.create_button.isEnabled()
     finally:
         win.close()
 

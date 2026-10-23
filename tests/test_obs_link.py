@@ -53,7 +53,8 @@ def test_load_items_completo_lee_presets_de_los_filtros():
     assert report == SceneReport(
         True, [], {}, {4: {"pos": (431.0, 1778.0), "scale": (0.199, 0.2)},
                        5: {"pos": (456.0, 1819.0), "scale": (0.18, 0.18)},
-                       6: {"pos": (466.0, 1860.0), "scale": (0.157, 0.156)}}, True)
+                       6: {"pos": (466.0, 1860.0), "scale": (0.157, 0.156)}}, True,
+        {n: config.MOVE_FILTER_KIND for n in HUD_FILTERS}, True)
     # al cargar se apagan las 10 escenas y el Borde
     assert len(fake.named_calls) == 11
     assert all(enabled is False for _, enabled in fake.named_calls)
@@ -69,6 +70,30 @@ def test_load_items_informa_lo_que_falta():
     assert r.missing_scenes == ["2 Offlaner"]
     assert r.missing_sources == {MID: [source_name("Foto", MID)]}
     assert r.filters[5] is None and r.filters[4] is not None and r.filters[6] is not None
+    assert r.filter_kinds == {4: config.MOVE_FILTER_KIND, 5: None, 6: config.MOVE_FILTER_KIND}
+
+
+def test_load_items_lee_el_tipo_de_los_filtros_y_si_esta_move_transition():
+    fake = fake_camaraman()
+    fake.filters["Juego"]["H 6 habilidades"]["kind"] = "color_filter"
+    fake.filter_kinds = ["color_filter", "mask_filter_v2"]
+    link = make_link(fake)
+    link.connect()
+    r = link.load_items()
+    assert r.move_plugin is False
+    assert r.filter_kinds[6] == "color_filter" and r.filter_kinds[4] == config.MOVE_FILTER_KIND
+
+
+def test_load_items_tolera_obs_sin_lista_de_tipos_de_filtro():
+    fake = fake_camaraman()
+    fake.filter_kinds = None
+    events = []
+    link = make_link(fake, events=events)
+    link.connect()
+    r = link.load_items()
+    assert r.move_plugin is None and link.connected is True
+    assert r.filters[4] is not None
+    assert not any("rechazó" in e for e in events)
 
 
 def test_escena_principal_inexistente():

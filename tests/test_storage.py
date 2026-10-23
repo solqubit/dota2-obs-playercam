@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from overpower_cams.config import PLAYER_SCENES
 from overpower_cams.players import PlayerConfig, TeamsConfig
 from overpower_cams.storage import LiveState, Settings, Storage
@@ -178,3 +180,122 @@ def test_host_y_modo_inicial_ida_y_vuelta(tmp_path):
 
 def test_estado_sin_guardar_usa_el_modo_inicial(tmp_path):
     assert Storage(tmp_path).load_state(2, "hidden") == LiveState(2, "hidden")
+
+
+# ---------- jugadores en memoria (para el hilo de OBS) ----------
+
+def test_snapshot_de_jugadores_sigue_a_lo_guardado_sin_releer_el_archivo(tmp_path, monkeypatch):
+    st = Storage(tmp_path)
+    d = st.load_players()
+    d["1 Mid laner"] = PlayerConfig("SumaiL", "http://cam", "", "camera")
+    st.save_players(d)
+    d["1 Mid laner"].name = "mutado después"          # el snapshot es una copia
+
+    def no_leer(path):
+        raise AssertionError("el snapshot no debe leer el disco")
+    monkeypatch.setattr(st, "_read_json", no_leer)
+    snap = st.players_snapshot()
+    assert snap["1 Mid laner"] == PlayerConfig("SumaiL", "http://cam", "", "camera")
+    assert set(snap) == set(PLAYER_SCENES)
+
+
+def test_snapshot_no_cambia_si_guardar_falla(tmp_path, monkeypatch):
+    import pytest
+    from overpower_cams import storage as storage_mod
+    st = Storage(tmp_path)
+    st.save_players({"1 Hard carry": PlayerConfig("A")})
+
+    def falla(src, dst):
+        raise OSError("disco lleno")
+    monkeypatch.setattr(storage_mod.os, "replace", falla)
+    with pytest.raises(OSError):
+        st.save_players({"1 Hard carry": PlayerConfig("B")})
+    assert st.players_snapshot()["1 Hard carry"].name == "A"
+
+
+def test_snapshot_no_se_borra_si_players_json_no_se_puede_leer(tmp_path):
+    st = Storage(tmp_path)
+    st.save_players({"1 Hard carry": PlayerConfig("A")})
+    (tmp_path / "players.json").write_text("{a medio escribir", encoding="utf-8")
+    assert st.load_players()["1 Hard carry"].name == "A"
+    assert st.players_snapshot()["1 Hard carry"].name == "A"
+
+
+def test_escritura_reintenta_si_windows_tiene_el_archivo_abierto(tmp_path, monkeypatch):
+    from overpower_cams import storage as storage_mod
+    real, intentos = storage_mod.os.replace, []
+
+    def ocupado(src, dst):
+        intentos.append(dst)
+        if len(intentos) < 3:
+            raise PermissionError(13, "El proceso no tiene acceso al archivo")
+        return real(src, dst)
+    monkeypatch.setattr(storage_mod.os, "replace", ocupado)
+    monkeypatch.setattr(storage_mod.time, "sleep", lambda s: None)
+    st = Storage(tmp_path)
+    st.save_players({"1 Hard carry": PlayerConfig("A")})
+    assert len(intentos) == 3
+    assert Storage(tmp_path).load_players()["1 Hard carry"].name == "A"
+    assert not list(tmp_path.glob("*.tmp"))
+
+
+def test_escritura_se_rinde_si_el_archivo_sigue_ocupado(tmp_path, monkeypatch):
+    import pytest
+    from overpower_cams import storage as storage_mod
+    intentos = []
+
+    def ocupado(src, dst):
+        intentos.append(dst)
+        raise PermissionError(13, "ocupado")
+    monkeypatch.setattr(storage_mod.os, "replace", ocupado)
+    monkeypatch.setattr(storage_mod.time, "sleep", lambda s: None)
+    with pytest.raises(PermissionError):
+        Storage(tmp_path).save_teams(TeamsConfig("A", "B"))
+    assert len(intentos) == storage_mod.REPLACE_TRIES
+    assert not list(tmp_path.glob("*.tmp"))
+
+
+def test_retratos_ajustes_y_estado_no_reintentan_ni_esperan(tmp_path, monkeypatch):
+    """save_portraits corre con el lock del motor: falla al momento, sin dormir."""
+    import pytest
+    from overpower_cams import storage as storage_mod
+    intentos = []
+
+    def ocupado(src, dst):
+        intentos.append(dst)
+        raise PermissionError(13, "ocupado")
+
+    def no_dormir(s):
+        raise AssertionError("no debe esperar")
+    monkeypatch.setattr(storage_mod.os, "replace", ocupado)
+    monkeypatch.setattr(storage_mod.time, "sleep", no_dormir)
+    st = Storage(tmp_path)
+    for guardar in (lambda: st.save_portraits({"r1": [0.0, 0.0, 1]}),
+                    lambda: st.save_settings(Settings()),
+                    lambda: st.save_state(LiveState(1, "auto"))):
+        with pytest.raises(PermissionError):
+            guardar()
+    assert len(intentos) == 3
+
+
+@pytest.mark.parametrize("section", ["players", "teams"])
+@pytest.mark.parametrize("unreadable", [True, False])
+def test_guardar_no_borra_la_otra_seccion_si_no_puede_leer(tmp_path, monkeypatch, section, unreadable):
+    st = Storage(tmp_path)
+    st.save_teams(TeamsConfig("A", "B"))
+    st.save_players({"1 Hard carry": PlayerConfig("Player A", "https://example.com/cam")})
+    path = tmp_path / "players.json"
+    if unreadable:
+        monkeypatch.setattr(st, "_read_json", lambda path: None)
+    else:
+        path.write_text("{incompleto", encoding="utf-8")
+    before = path.read_bytes()
+    snapshot = st.players_snapshot()
+    with pytest.raises(OSError, match="se conserva el archivo"):
+        if section == "players":
+            st.save_players({"1 Hard carry": PlayerConfig("Otro")})
+        else:
+            st.save_teams(TeamsConfig("Otro", ""))
+    assert path.read_bytes() == before
+    assert st.players_snapshot() == snapshot
+    assert not list(tmp_path.glob("*.tmp"))

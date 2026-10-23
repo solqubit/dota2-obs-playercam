@@ -109,7 +109,7 @@ class EngineStatus:
     hero: str | None
     game_state: str | None
     roster: dict[str, str] = field(default_factory=dict)
-    abilities: dict[str, int] = field(default_factory=dict)   # escena -> preset (4/5/6)
+    abilities: dict[str, int] = field(default_factory=dict)   # escena -> preset (4/5/6), solo con datos
     clock_time: int | None = None   # reloj de la partida (map.clock_time, en segundos)
 
 
@@ -184,7 +184,11 @@ class Engine:
         roster = {}
         for slot in self._slot_keys:
             roster[slot] = cameras_on_side(slot[0], rt)[int(slot[1:]) - 1]
-        abilities = {scene: self._preset_of(k) for k, scene in self._resolved_map.items()}
+        known = self._abilities
+        # Solo lo que GSI informó: sin datos la escena no aparece (la ventana muestra "—"),
+        # aunque al aire se use el filtro de 4.
+        abilities = {scene: hud_preset(known[k]) for k, scene in self._resolved_map.items()
+                     if known.get(k) is not None}
         key = self._current_key
         return EngineStatus(
             mode=self._mode, radiant_team=rt, camera=self._camera,

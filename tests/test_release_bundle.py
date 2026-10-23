@@ -8,6 +8,7 @@ import pytest
 from overpower_cams.demo import prepare_demo
 
 ROOT = Path(__file__).resolve().parent.parent
+VERSION = "2.0.1"
 spec = importlib.util.spec_from_file_location("release_zip", ROOT / "packaging/make_zip.py")
 release = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(release)
@@ -17,7 +18,7 @@ def release_tree(tmp_path):
     files = {
         "packaging/FIRST_RUN_GUIDE.txt", "packaging/GUIA_PRIMERA_VEZ.txt",
         "packaging/PREPARAR_DEMO.cmd", "docs/DEMO_CAMARAMAN.md", "LICENSE",
-        "packaging/RELEASE_NOTES_v2.0.0.md",
+        f"packaging/RELEASE_NOTES_v{VERSION}.md",
         "THIRD_PARTY_NOTICES.md", "obs/example-scene.json", "assets/Borde.png",
         "docs/img/app.png", "docs/img/in-game.png",
         "assets/Mascara camara.png", "assets/Marco sin camara.png",
@@ -39,7 +40,7 @@ def release_tree(tmp_path):
 
 def test_zip_completo_se_extrae_y_reubica_y_sus_hashes_coinciden(tmp_path):
     plugin_files = release_tree(tmp_path)
-    target = release.build_zip(tmp_path, "2.0.0", plugin_files)
+    target = release.build_zip(tmp_path, VERSION, plugin_files)
     with zipfile.ZipFile(target) as archive:
         assert archive.testzip() is None
         names = set(archive.namelist())
@@ -56,11 +57,11 @@ def test_zip_completo_se_extrae_y_reubica_y_sus_hashes_coinciden(tmp_path):
 
 def test_un_recurso_ausente_conserva_el_zip_anterior(tmp_path):
     plugin_files = release_tree(tmp_path)
-    target = release.build_zip(tmp_path, "2.0.0", plugin_files)
+    target = release.build_zip(tmp_path, VERSION, plugin_files)
     original = target.read_bytes()
     (tmp_path / "assets/Borde.png").unlink()
     with pytest.raises(ValueError, match="Falta un recurso"):
-        release.build_zip(tmp_path, "2.0.0", plugin_files)
+        release.build_zip(tmp_path, VERSION, plugin_files)
     assert target.read_bytes() == original
 
 
@@ -69,3 +70,25 @@ def test_rechaza_un_instalador_local_que_no_coincide_con_el_oficial(tmp_path):
     with pytest.raises(ValueError, match="SHA-256 incorrecto"):
         with release.plugin_bundle(tmp_path):
             pytest.fail("An invalid plugin must not be packaged")
+
+
+def test_la_version_por_defecto_es_la_actual_y_trae_sus_notas():
+    assert release.DEFAULT_VERSION == VERSION
+    assert (ROOT / f"packaging/RELEASE_NOTES_v{VERSION}.md").is_file()
+    info = (ROOT / "packaging/version_info.txt").read_text(encoding="utf-8")
+    assert "(2, 0, 1, 0)" in info and "'2.0.1.0'" in info and "2.0.0" not in info
+
+
+def test_el_zip_lleva_las_notas_de_su_version(tmp_path):
+    plugin_files = release_tree(tmp_path)
+    target = release.build_zip(tmp_path, VERSION, plugin_files)
+    assert target.name == f"DotaPlayerCams-v{VERSION}-windows.zip"
+    with zipfile.ZipFile(target) as archive:
+        assert archive.read("RELEASE_NOTES.md") == (ROOT / f"packaging/RELEASE_NOTES_v{VERSION}.md").read_bytes()
+
+
+def test_sin_notas_para_esa_version_se_niega_con_un_mensaje_claro(tmp_path):
+    plugin_files = release_tree(tmp_path)
+    with pytest.raises(ValueError, match=r"RELEASE_NOTES_v9\.9\.9\.md"):
+        release.build_zip(tmp_path, "9.9.9", plugin_files)
+    assert not (tmp_path / "dist/DotaPlayerCams-v9.9.9-windows.zip").exists()

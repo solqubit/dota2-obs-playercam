@@ -14,8 +14,8 @@ from overpower_cams.storage import Settings, Storage
 from conftest import FakeObsClient, fake_camaraman, filtros_camaraman, layout_camaraman, layout_nuevo
 
 DATA = Path(__file__).parent / "data" / "dotakeys_ejemplo.lst"
-IDS = ["dota", "gsi_cfg", "gsi_data", "keys", "obs", "scene", "player_scenes", "move_filters",
-       "scene_images", "portraits"]
+IDS = ["dota", "gsi_cfg", "gsi_data", "keys", "obs", "scene", "player_scenes", "player_sources",
+       "move_filters", "scene_images", "portraits"]
 NOW = 1000.0
 
 
@@ -52,6 +52,15 @@ def make_ctx(tmp_path, fake=None, *, connect=True, last_post_t=NOW - 1, with_key
     return ctx, fake
 
 
+def con_links(ctx, **por_escena):
+    """Guarda los 10 jugadores con cámara y foto; `por_escena` pisa algunos (_ en vez de espacio)."""
+    from overpower_cams.players import PlayerConfig
+    d = {s: PlayerConfig(s, "http://cam", "http://foto", "camera") for s in config.PLAYER_SCENES}
+    for k, v in por_escena.items():
+        d[k.replace("_", " ")] = v
+    ctx.storage.save_players(d)
+
+
 def by_id(results):
     return {r.id: r for r in results}
 
@@ -67,10 +76,11 @@ def test_orden_e_ids_y_todo_ok(tmp_path):
     ctx, fake = make_ctx(tmp_path)
     imagenes_ok(tmp_path, fake)
     ctx.keys_file.write_bytes(fix_keys_text(DATA.read_text(newline="")).encode())
+    con_links(ctx)
     res = run_checks(ctx, is_running=CERRADO)
     assert [r.id for r in res] == IDS
     assert all(isinstance(r, CheckResult) for r in res)
-    assert [r.status for r in res] == ["ok"] * 10, [(r.id, r.status, r.detail) for r in res]
+    assert [r.status for r in res] == ["ok"] * len(IDS), [(r.id, r.status, r.detail) for r in res]
 
 
 def test_run_checks_no_modifica_nada(tmp_path):
@@ -375,6 +385,21 @@ def test_player_scenes_arreglo_sin_plantilla_se_niega(tmp_path):
     assert not any(o[0] == "scene_create" for o in fake.ops)
 
 
+def test_player_scenes_sin_plantilla_no_ofrece_crear_escenas(tmp_path):
+    ctx, _ = make_ctx(tmp_path, fake_camaraman(skip_scenes=("1 Hard carry", "2 Mid laner")))
+    r = check(ctx, "player_scenes")
+    assert r.status == "warn" and r.fix_label is None
+    assert "1 Hard carry" in (r.instructions or "")
+
+
+def test_player_scenes_con_plantilla_incompleta_no_ofrece_crear_escenas(tmp_path):
+    fake = fake_camaraman(skip_scenes=("2 Mid laner",), skip_sources=("Fondo · 1 Hard carry",))
+    ctx, _ = make_ctx(tmp_path, fake)
+    r = check(ctx, "player_scenes")
+    assert r.status == "warn" and r.fix_label is None
+    assert "1 Hard carry" in (r.instructions or "")
+
+
 def test_player_scenes_arreglo_sin_escenas_faltantes_se_niega(tmp_path):
     ctx, _ = make_ctx(tmp_path)
     with pytest.raises(FixRefused):
@@ -398,6 +423,44 @@ def test_player_scenes_arreglo_que_falla_a_medias_informa(tmp_path):
     assert ctx.obs.connected
 
 
+# ---------- player_sources ----------
+
+def test_player_sources_ok_con_url_en_la_fuente_elegida(tmp_path):
+    from overpower_cams.players import PlayerConfig
+    ctx, _ = make_ctx(tmp_path)
+    con_links(ctx, **{"1_Mid_laner": PlayerConfig("M", "", "http://foto", "photo")})
+    r = check(ctx, "player_sources")
+    assert r.status == "ok" and r.title == "Fuentes de los jugadores"
+
+
+def test_player_sources_avisa_quien_no_tiene_url_en_la_fuente_elegida(tmp_path):
+    from overpower_cams.players import PlayerConfig
+    ctx, _ = make_ctx(tmp_path)
+    con_links(ctx, **{"1_Mid_laner": PlayerConfig("M", "http://cam", "", "photo"),
+                      "2_Offlaner": PlayerConfig("O", "", "http://foto", "camera")})
+    r = check(ctx, "player_sources")
+    assert r.status == "warn" and r.fix_label is None
+    assert "1 Mid laner: Foto sin URL" in r.detail and "2 Offlaner: Cámara sin URL" in r.detail
+    assert "1 Hard carry" not in r.detail
+    assert "Jugadores" in (r.instructions or "")
+    with pytest.raises(FixRefused):
+        apply_fix("player_sources", ctx)
+
+
+def test_player_sources_usa_los_jugadores_en_memoria(tmp_path, monkeypatch):
+    ctx, _ = make_ctx(tmp_path)
+    con_links(ctx)
+    monkeypatch.setattr(ctx.storage, "load_players",
+                        lambda: (_ for _ in ()).throw(AssertionError("no leer el disco")))
+    assert check(ctx, "player_sources").status == "ok"
+
+
+def test_player_sources_no_depende_de_obs(tmp_path):
+    ctx, _ = make_ctx(tmp_path, connect=False)
+    r = check(ctx, "player_sources")
+    assert r.status == "warn" and "1 Hard carry: Cámara sin URL" in r.detail
+
+
 # ---------- move_filters ----------
 
 def test_move_filters_ok_y_faltan(tmp_path):
@@ -411,6 +474,39 @@ def test_move_filters_ok_y_faltan(tmp_path):
     assert "Move Transition" in r.detail and "Move Transition" in (r.instructions or "")
     with pytest.raises(FixRefused):
         apply_fix("move_filters", ctx)
+
+
+def test_move_filters_sin_plugin_move_transition_no_queda_en_verde(tmp_path):
+    """OBS conserva los filtros de un plugin que falta (con sus ajustes): hay que mirar los tipos."""
+    fake = fake_camaraman()
+    fake.filter_kinds = [k for k in fake.filter_kinds if not k.startswith("move_")]
+    ctx, _ = make_ctx(tmp_path, fake)
+    r = check(ctx, "move_filters")
+    assert r.status == "error" and r.fix_label is None
+    assert "Move Transition" in r.detail and "Move Transition" in (r.instructions or "")
+
+
+def test_move_filters_con_otro_tipo_de_filtro_no_queda_en_verde(tmp_path):
+    fake = fake_camaraman()
+    fake.filters["Juego"]["H 5 habilidades"]["kind"] = "color_filter"
+    ctx, _ = make_ctx(tmp_path, fake)
+    r = check(ctx, "move_filters")
+    assert r.status == "warn"
+    assert "H 5 habilidades" in r.detail and "H 4 habilidades" not in r.detail
+    assert "Move Transition" in (r.instructions or "")
+
+
+def test_move_filters_sin_lista_de_tipos_no_confirma_un_plugin_desconocido(tmp_path):
+    """Sin GetSourceFilterKindList no se pierde la conexión ni se confirma el plugin en verde."""
+    fake = fake_camaraman()
+    fake.filter_kinds = None
+    ctx, _ = make_ctx(tmp_path, fake)
+    r = check(ctx, "move_filters")
+    assert r.status == "warn" and "No pude confirmar" in r.detail
+    fake.filters["Juego"]["H 4 habilidades"]["kind"] = "color_filter"
+    r = check(ctx, "move_filters")
+    assert r.status == "warn" and "H 4 habilidades" in r.detail
+    assert ctx.obs.connected
 
 
 # ---------- scene_images ----------

@@ -89,7 +89,7 @@ class AppParts:
     def make_obs(self, settings: Settings) -> ObsLink:
         """ObsLink nuevo con los ajustes dados; desde ya el motor manda las cámaras a él."""
         obs = ObsLink(settings.obs_host, settings.obs_port, settings.obs_password,
-                      main_scene=settings.main_scene, players_provider=self.storage.load_players,
+                      main_scene=settings.main_scene, players_provider=self.storage.players_snapshot,
                       client_factory=self.obs_client_factory, on_event=self.events.post)
         self.obs = obs
         self.sink.obs = obs
@@ -109,6 +109,7 @@ def build_app(storage: Storage, *, steam=_AUTO, obs_client_factory=obsws_python.
     settings = storage.load_settings()
     state = storage.load_state(settings.default_radiant_team, settings.default_mode)
     portraits = PortraitModel(storage.load_portraits(legacy_portraits))
+    storage.load_players()   # deja los jugadores en memoria: OBS no vuelve a abrir players.json
 
     def save_portraits():   # corre con el lock del motor: solo escribe el archivo
         try:

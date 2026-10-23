@@ -54,6 +54,10 @@ def detect_default() -> str:
 # Catálogo español -> inglés. Lo revisa tests/test_i18n.py: cada tr("…") del código tiene
 # su entrada, no sobran entradas y los marcadores {nombre} coinciden.
 EN: dict[str, str] = {
+    "No pude confirmar que Move Transition esté cargado; OBS no informa los tipos de filtro disponibles.":
+        "Could not confirm that Move Transition is loaded; OBS does not report the available filter kinds.",
+    "No pude leer los datos de jugadores; se conserva el archivo existente. Vuelve a intentar guardar.":
+        "Could not read player data; the existing file is preserved. Try saving again.",
     # ---- app / config ----
     "OverPower · Cámaras Dota": "OverPower · Dota Player Cams",
     "Los detalles están en:\n{path}": "Details were saved to:\n{path}",
@@ -112,6 +116,28 @@ EN: dict[str, str] = {
     "Escenas creadas: {names}": "Scenes created: {names}",
     "Escenas de jugador": "Player scenes",
     "Falta el plugin Move Transition o los filtros H 4/5/6 habilidades en «{scene}»: {names}": "The Move Transition plugin or the H 4/5/6 habilidades filters are missing in \"{scene}\": {names}",
+    "OBS no tiene el plugin Move Transition: los filtros H 4/5/6 habilidades no mueven nada":
+        "OBS doesn't have the Move Transition plugin: the H 4/5/6 habilidades filters don't move anything",
+    "Estos filtros no son «Mover fuente» (Move Source) de Move Transition: {names}":
+        "These filters aren't Move Transition's \"Move Source\" filters: {names}",
+    "Fuentes de los jugadores": "Player sources",
+    "Los 10 jugadores tienen URL en la fuente elegida": "All 10 players have a URL in their chosen source",
+    "{scene}: {source} sin URL": "{scene}: {source} has no URL",
+    "Sin URL en la fuente elegida, ese jugador sale al aire sin cámara ni foto.\n"
+    "1. Abre la página Jugadores.\n"
+    "2. Escribe la URL de cámara o de foto que falta, o cambia «Usar» a la fuente que sí tiene URL.":
+        "Without a URL in the chosen source, that player goes on air with neither camera nor photo.\n"
+        "1. Open the Players page.\n"
+        "2. Type the missing camera or photo URL, or switch \"Use\" to the source that has a URL.",
+    "Para crear las escenas que faltan la app copia «{template}», pero esa escena falta o está "
+    "incompleta. Arréglala en OBS (con sus fuentes «Camara · {template}», «Foto · {template}», "
+    "«Fondo · {template}» y «Nombre · {template}») o importa de nuevo la colección Camaraman, y "
+    "pulsa «Revisar todo de nuevo».":
+        "To create the missing scenes the app copies \"{template}\", but that scene is missing or "
+        "incomplete. Fix it in OBS (with its sources \"Camara · {template}\", \"Foto · {template}\", "
+        "\"Fondo · {template}\" and \"Nombre · {template}\") or import the Camaraman collection again, "
+        "and press \"Re-check everything\".",
+    "cambió la escena principal": "main scene changed",
     "Falta {file} en la carpeta de la app ({folder}): cópiala ahí y pulsa «Arreglar», o ponla a mano en OBS.": "{file} is missing from the app folder ({folder}): copy it there and press \"Fix\", or set it by hand in OBS.",
     "Falta {name} en la escena «{scene}» (las escenas de jugador funcionan igual)": "{name} is missing from the \"{scene}\" scene (the player scenes work anyway)",
     "Faltan escenas: {names}": "Missing scenes: {names}",

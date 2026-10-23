@@ -55,6 +55,7 @@ app **fixes it in one click** (always asking first) or tells you exactly what to
 | Spectator hotkeys | Assigns keys 1–0 to the 10 players and resolves clashes with other actions, only with Dota closed and after making a backup |
 | OBS & WebSocket | Checks the connection and password, and guides you if it isn't enabled |
 | OBS scene | Checks `Juego`, the 10 player scenes and their 4 sources each, the Move Transition plugin and the 3 H filters; creates missing player scenes by copying `1 Hard carry` |
+| Player sources | Warns when a player's selected Camera/Photo source has no URL; updates this check after editing without scanning OBS again |
 | Images | Sets the border, mask and background images from the app's image folder (see [Images](#border-mask-and-background-images)) |
 | Abilities in GSI | Makes sure the GSI file asks Dota for abilities, so the app knows how many each hero has |
 
@@ -299,12 +300,12 @@ live verification still requires observing the hero's HUD before and after the u
 .venv\Scripts\pyinstaller packaging/overpower_cams.spec --noconfirm
 ```
 ```bash
-.venv\Scripts\python packaging/make_zip.py 2.0.0
+.venv\Scripts\python packaging/make_zip.py 2.0.1
 ```
 
 This creates two git-ignored folders:
 - `dist\` with the results: `dist\DotaPlayerCams\` (the app, ready to run) and
-  `dist\DotaPlayerCams-v2.0.0-windows.zip`. The zip contains the app, both first-run guides,
+  `dist\DotaPlayerCams-v2.0.1-windows.zip`. The zip contains the app, both first-run guides,
   the licenses, third-party notices and the complete Camaraman demo (graphics, scene,
   preparer and Move Transition 3.2.1 installer plus its source).
 - `build\` with PyInstaller's temporary files, safe to delete.

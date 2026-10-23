@@ -3,8 +3,8 @@ resultado y sus botones (arreglar con confirmación, instrucciones, Buscar…) y
 quedan pendientes (la insignia del menú).
 
 Es un mixin de Shell: usa `_ctx_factory`, `obs`, `_settings`, `_events`, `_closed`,
-`_is_running`, `_fix_running`, `_run_bg`, `_reload_keys`, `_save_settings` y
-`_on_checks_rendered(results)`. `_build_checks_page()` arma la página y sus widgets
+`_is_running`, `_fix_running`, `_run_bg`, `_reload_keys`, `_save_settings`, `storage`,
+`sidebar` y `_on_checks_rendered(results)`. `_build_checks_page()` arma la página y sus widgets
 `_rows_lay` y `recheck_button`."""
 from pathlib import Path
 
@@ -85,6 +85,24 @@ class ChecksMixin:
             self._rows_lay.addWidget(CheckRow(r, self._row_buttons(r)))
         self._rows_lay.addStretch(1)
         self._on_checks_rendered(results)
+
+    def refresh_player_sources(self) -> None:
+        """Recalcula solo «Fuentes de los jugadores» (en este hilo, sin OBS) y cambia su fila y la
+        insignia. Lo usa la ventana al editar jugadores o equipos: correr todas las revisiones
+        releería la colección de OBS con su lock tomado en plena partida."""
+        if not any(r.id == "player_sources" for r in self.check_results):
+            return                                 # todavía no hay revisión dibujada
+        new = checks.player_sources_result(self.storage)
+        self.check_results = [new if r.id == new.id else r for r in self.check_results]
+        for i in range(self._rows_lay.count()):
+            old = self._rows_lay.itemAt(i).widget()
+            if isinstance(old, CheckRow) and old.result.id == new.id:
+                self._rows_lay.insertWidget(i, CheckRow(new, self._row_buttons(new)))
+                self._rows_lay.removeWidget(old)
+                old.setParent(None)                # fuera de la página ya, no al borrarse
+                old.deleteLater()
+                break
+        self.sidebar.set_pending(pending_count(self.check_results))
 
     def _button(self, text: str, slot) -> QPushButton:
         b = QPushButton(text)

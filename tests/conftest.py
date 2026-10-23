@@ -168,6 +168,10 @@ def filtros_camaraman(omitir=()):
                       for n, v in reales.items() if n not in omitir}}
 
 
+# Tipos de filtro que OBS tiene cargados (GetSourceFilterKindList), con Move Transition instalado
+FILTER_KINDS = ("mask_filter", "mask_filter_v2", "color_filter", "move_source_filter",
+                "move_value_filter", "move_action_filter")
+
 # Claves de GetSceneItemTransform que SetSceneItemTransform rechaza (OBS las calcula)
 READONLY_TRANSFORM_KEYS = frozenset({"sourceWidth", "sourceHeight", "width", "height"})
 
@@ -184,6 +188,8 @@ class FakeObsClient:
       (("enable", contenedor, nombre, bool), ("transform", ...), ("filter_settings", ...),
       ("filter_enabled", ...)).
     - `inputs`: ajustes por nombre de entrada.
+    - `filter_kinds`: lo que responde `GetSourceFilterKindList` (sin "move_source_filter" = falta
+      el plugin Move Transition); None = OBS no conoce ese pedido (obs-websocket viejo).
     - `fail_next=True`: la siguiente llamada lanza ConnectionError (una sola vez).
     - `restart()`: renumera los IDs y las llamadas siguientes lanzan ConnectionError
       hasta que `factory()` (el "client_factory" de ObsLink) entregue un cliente nuevo.
@@ -211,6 +217,7 @@ class FakeObsClient:
         self.created = []
         self.input_kinds = {}     # entrada -> tipo (por defecto "browser_source")
         self.transforms = {}      # (contenedor, id) -> último transform pedido
+        self.filter_kinds = list(FILTER_KINDS)
         self._generation = 0
         self._assign_ids()
 
@@ -351,6 +358,12 @@ class FakeObsClient:
             {"filterName": n, "filterKind": f["kind"], "filterEnabled": f["enabled"],
              "filterIndex": i, "filterSettings": dict(f["settings"])}
             for i, (n, f) in enumerate(self.filters.get(name, {}).items())])
+
+    def get_source_filter_kind_list(self):
+        self._check()
+        if self.filter_kinds is None:
+            raise OBSSDKRequestError("GetSourceFilterKindList", 204, "Your request type is not valid")
+        return SimpleNamespace(source_filter_kinds=list(self.filter_kinds))
 
     def create_source_filter(self, sourceName, filterName, filterKind, filterSettings=None):
         self._check()

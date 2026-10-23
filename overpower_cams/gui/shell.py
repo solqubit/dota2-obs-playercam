@@ -109,6 +109,8 @@ class Shell(ChecksMixin, QMainWindow):
         self._closed = False
         self._asked_password = False
         self._fix_running = False
+        self._ui_ready = False                 # True al terminar __init__ (ventana armada)
+        self._hide_on_retire: set = set()      # ObsLink viejos a apagar antes de cerrarlos
         self.check_results: list[CheckResult] = []
 
         self.setWindowTitle(config.app_name())
@@ -124,6 +126,7 @@ class Shell(ChecksMixin, QMainWindow):
         self.timer.timeout.connect(self.tick)
         self.timer.start()
         QTimer.singleShot(0, self.tick)
+        self._ui_ready = True
 
     # ------------------------------------------------------------------ interfaz
     def _build_ui(self, ctx) -> None:
@@ -298,6 +301,10 @@ class Shell(ChecksMixin, QMainWindow):
         self.live_bar.set_team_names(self.teams)
         self.settings_page.set_team_names(self.teams)
         self.players_page.set_data(self.teams, self.players)
+        if self._ui_ready:
+            # Solo «Fuentes de los jugadores» (sin OBS): correr todas las revisiones releería la
+            # colección con el lock de OBS tomado y un cambio de cámara de GSI esperaría detrás.
+            self.refresh_player_sources()
 
     def _obs_state(self) -> tuple[str, str]:
         obs = self.obs
@@ -355,7 +362,7 @@ class Shell(ChecksMixin, QMainWindow):
         if exc is not None:
             self._events.post(f"[ERROR] OBS: {exc}")
         if obs is not self.obs:                    # se cambió en Ajustes mientras conectaba
-            self._run_bg(obs.close, None)
+            self._retire_obs(obs)
             return
         if self._closed:
             return
@@ -459,6 +466,7 @@ class Shell(ChecksMixin, QMainWindow):
         s = self._settings
         obs_changed = ((new.obs_host, new.obs_port, new.obs_password, new.main_scene)
                        != (s.obs_host, s.obs_port, s.obs_password, s.main_scene))
+        main_scene_changed = new.main_scene != s.main_scene
         language_changed = new.language is not None and new.language != get_language()
         for f in fields(Settings):
             setattr(s, f.name, getattr(new, f.name))
@@ -470,14 +478,30 @@ class Shell(ChecksMixin, QMainWindow):
             self.obs = self._obs_factory(s)
             self._was_connected = False
             self._last_obs_try = float("-inf")
-            if not self._obs_busy:                 # si está ocupado, lo cierra `_obs_done`
-                self._run_bg(old.close, None)
+            if main_scene_changed:
+                self._hide_on_retire.add(old)
+            if not self._obs_busy:                 # si está ocupado, lo retira `_obs_done`
+                self._retire_obs(old)
             self._events.post(tr("Ajustes de OBS cambiados: conectando a {host}:{port}",
                                  host=self.obs.host, port=self.obs.port))
             self.tick()
         self.run_checks()
         if language_changed and self.ask_restart(new.language):
             self.restart()
+
+    def _retire_obs(self, old) -> None:
+        """Cierra un ObsLink que ya no se usa, en otro hilo. Si cambió la escena principal,
+        antes apaga lo que dejó al aire en el OBS anterior: no puede quedar con la del
+        jugador y el Borde encendidos. Se llama cuando nadie más usa `old` (por eso, con el
+        mantenimiento en curso, lo hace `_obs_done`)."""
+        hide = old in self._hide_on_retire
+        self._hide_on_retire.discard(old)
+
+        def work():
+            if hide and old.connected:
+                old.apply(None, tr("cambió la escena principal"))
+            old.close()
+        self._run_bg(work, None)
 
     def ask_restart(self, language: str) -> bool:
         """El idioma nuevo se aplica al reiniciar: preguntar (en el idioma NUEVO) si ahora."""

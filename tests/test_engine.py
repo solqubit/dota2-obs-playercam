@@ -326,10 +326,10 @@ def test_habilidades_de_otro_jugador_no_reactivan(fx):
     assert fx.sink.retriggers == []
 
 
-def test_sin_datos_de_habilidades_usa_4(fx):
+def test_sin_datos_de_habilidades_usa_4_pero_el_estado_no_lo_inventa(fx):
     fx.post("r2")
     assert fx.sink.calls[-1] == ("1 Mid laner", "GSI", 4)
-    assert fx.engine.status().abilities["1 Mid laner"] == 4
+    assert "1 Mid laner" not in fx.engine.status().abilities   # la ventana muestra "—"
 
 
 def test_habilidades_fuera_de_rango_se_ajustan(fx):
@@ -347,8 +347,7 @@ def test_tecla_instantanea_usa_las_habilidades_ya_conocidas(fx):
 def test_status_expone_habilidades_por_escena(fx):
     fx.post("r1", abilities={"1 Hard carry": 5, "2 Hard support": 6})
     ab = fx.engine.status().abilities
-    assert ab["1 Hard carry"] == 5 and ab["2 Hard support"] == 6 and ab["1 Mid laner"] == 4
-    assert len(ab) == 10
+    assert ab == {"1 Hard carry": 5, "2 Hard support": 6}     # solo lo que GSI informó
 
 
 def test_post_sin_seccion_de_habilidades_conserva_lo_conocido(fx):

@@ -16,6 +16,7 @@ from . import config, gsi_cfg, paths
 from .dota_keys import fix_keys_text, link_enabled, missing_slots, parse_player_keys
 from .i18n import tr
 from .obs_link import BORDE, ObsLink, SceneReport
+from .players import PlayerConfig, effective_use
 from .portraits import PortraitModel
 from .scene_builder import SceneBuildError
 from .storage import Settings, Storage
@@ -83,6 +84,7 @@ def check_title(cid: str) -> str:
         "obs": tr("OBS y WebSocket"),
         "scene": tr("Escena de OBS"),
         "player_scenes": tr("Escenas de jugador"),
+        "player_sources": tr("Fuentes de los jugadores"),
         "move_filters": tr("Filtros de habilidades"),
         "scene_images": tr("Imágenes de las escenas"),
         "portraits": tr("Retratos"),
@@ -295,6 +297,15 @@ def _check_player_scenes(ctx: Context, scan: _Scan, **_) -> CheckResult:
         partes.append(tr("Faltan fuentes: {names}", names=", ".join(faltan)))
     if not partes:
         return _res("player_scenes", "ok", tr("Las 10 escenas de jugador tienen sus 4 fuentes"))
+    if rep.missing_scenes and (TEMPLATE_SCENE in rep.missing_scenes
+                               or rep.missing_sources.get(TEMPLATE_SCENE)):
+        # Sin la plantilla completa no hay qué copiar: no se ofrece un arreglo que se negaría.
+        return _res("player_scenes", "warn", "; ".join(partes), None,
+                    tr("Para crear las escenas que faltan la app copia «{template}», pero esa escena "
+                       "falta o está incompleta. Arréglala en OBS (con sus fuentes «Camara · {template}», "
+                       "«Foto · {template}», «Fondo · {template}» y «Nombre · {template}») o importa "
+                       "de nuevo la colección Camaraman, y pulsa «Revisar todo de nuevo».",
+                       template=TEMPLATE_SCENE))
     if rep.missing_scenes:
         return _res("player_scenes", "warn", "; ".join(partes), tr("Crear escenas"),
                     tr("«Crear escenas» copia la escena «{template}» (con sus 4 fuentes, filtros y "
@@ -306,17 +317,59 @@ def _check_player_scenes(ctx: Context, scan: _Scan, **_) -> CheckResult:
                    "«Fondo · escena» y «Nombre · escena»), o copia otra escena de jugador."))
 
 
+def _check_player_sources(ctx: Context, **_) -> CheckResult:
+    return player_sources_result(ctx.storage)
+
+
+def player_sources_result(storage: Storage) -> CheckResult:
+    """Jugadores cuya fuente elegida (Cámara o Foto) no tiene URL: al aire no se ve ninguna de las
+    dos. Usa los jugadores en memoria (no abre players.json) y no habla con OBS, así la ventana la
+    recalcula al editar un jugador sin volver a correr todas las revisiones."""
+    players = storage.players_snapshot()
+    sin_url = []
+    for scene in config.PLAYER_SCENES:
+        p = players.get(scene) or PlayerConfig()
+        if effective_use(p) is None:
+            fuente = tr("Foto") if p.use == "photo" else tr("Cámara")
+            sin_url.append(tr("{scene}: {source} sin URL", scene=scene, source=fuente))
+    if not sin_url:
+        return _res("player_sources", "ok", tr("Los 10 jugadores tienen URL en la fuente elegida"))
+    return _res("player_sources", "warn", _short_list(sin_url), None,
+                tr("Sin URL en la fuente elegida, ese jugador sale al aire sin cámara ni foto.\n"
+                   "1. Abre la página Jugadores.\n"
+                   "2. Escribe la URL de cámara o de foto que falta, o cambia «Usar» a la fuente que "
+                   "sí tiene URL."))
+
+
 def _check_move_filters(ctx: Context, scan: _Scan, **_) -> CheckResult:
     if (r := _unchecked("move_filters", ctx, scan)) is not None:
         return r
     main = ctx.obs.main_scene
-    faltan = [name for n, name in config.HUD_FILTERS.items() if scan.report.filters.get(n) is None]
-    if not faltan:
+    rep = scan.report
+    if rep.move_plugin is False:
+        # OBS conserva los filtros de un plugin que falta (con sus ajustes): parecerían estar bien.
+        return _res("move_filters", "error",
+                    tr("OBS no tiene el plugin Move Transition: los filtros H 4/5/6 habilidades no "
+                       "mueven nada"), None, _instr_move_filters(main))
+    faltan = [name for n, name in config.HUD_FILTERS.items() if rep.filters.get(n) is None]
+    # Un filtro sin filterKind (OBS no lo informó) cuenta como de otro tipo.
+    otro_tipo = [name for n, name in config.HUD_FILTERS.items()
+                 if rep.filters.get(n) is not None
+                 and rep.filter_kinds.get(n) != config.MOVE_FILTER_KIND]
+    if not faltan and not otro_tipo and rep.move_plugin is None:
+        return _res("move_filters", "warn",
+                    tr("No pude confirmar que Move Transition esté cargado; OBS no informa los "
+                       "tipos de filtro disponibles."), None, _instr_move_filters(main))
+    if not faltan and not otro_tipo:
         return _res("move_filters", "ok", tr("Los filtros H 4/5/6 habilidades están en «{scene}»", scene=main))
-    return _res("move_filters", "warn",
-                tr("Falta el plugin Move Transition o los filtros H 4/5/6 habilidades en «{scene}»: "
-                   "{names}", scene=main, names=", ".join(faltan)),
-                None, _instr_move_filters(main))
+    partes = []
+    if faltan:
+        partes.append(tr("Falta el plugin Move Transition o los filtros H 4/5/6 habilidades en «{scene}»: "
+                         "{names}", scene=main, names=", ".join(faltan)))
+    if otro_tipo:
+        partes.append(tr("Estos filtros no son «Mover fuente» (Move Source) de Move Transition: {names}",
+                         names=", ".join(otro_tipo)))
+    return _res("move_filters", "warn", "; ".join(partes), None, _instr_move_filters(main))
 
 
 @dataclass
@@ -399,7 +452,8 @@ def run_checks(ctx: Context, *, is_running=paths.is_running) -> list[CheckResult
     plan = [
         ("dota", _check_dota), ("gsi_cfg", _check_gsi_cfg), ("gsi_data", _check_gsi_data),
         ("keys", _check_keys), ("obs", _check_obs), ("scene", _check_scene),
-        ("player_scenes", _check_player_scenes), ("move_filters", _check_move_filters),
+        ("player_scenes", _check_player_scenes), ("player_sources", _check_player_sources),
+        ("move_filters", _check_move_filters),
         ("scene_images", _check_scene_images), ("portraits", _check_portraits),
     ]
     results = []
