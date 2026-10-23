@@ -19,14 +19,14 @@ THEMES = {
         "muted": "#9aa3af", "input": "#11141a", "input_text": "#c9d1d9", "hover": "#262b34",
         "accent": "#2f6feb", "accent_soft": "rgba(47,111,235,46)", "nav_active": "#ffffff",
         "onair_bg": "#173b22", "onair_border": "#2ea043", "onair_text": "#e6e8ec",
-        "intro_bg": "#3a2d12", "intro_border": "#d29922",
+        "intro_bg": "#3a2d12", "intro_border": "#d29922", "onair_row": "rgba(46,160,67,40)",
     },
     "light": {
         "bg": "#f3f5f8", "card": "#ffffff", "border": "#d5dae1", "text": "#1f2328",
         "muted": "#5f5f5f", "input": "#ffffff", "input_text": "#1f2328", "hover": "#e8ecf1",
         "accent": "#2f6feb", "accent_soft": "rgba(47,111,235,30)", "nav_active": "#1747a6",
         "onair_bg": "#dafbe1", "onair_border": "#2ea043", "onair_text": "#0f3d1c",
-        "intro_bg": "#fff3d6", "intro_border": "#d29922",
+        "intro_bg": "#fff3d6", "intro_border": "#d29922", "onair_row": "rgba(46,160,67,34)",
     },
 }
 
@@ -126,6 +126,11 @@ QListWidget#eventList {{ background: {card}; border: 1px solid {border}; border-
     padding: 8px; font-family: Consolas, monospace; font-size: 12px; }}
 QListWidget#eventList::item {{ padding: 3px 4px; border-bottom: 1px solid {border}; }}
 QFrame#checkRow {{ border: none; border-bottom: 1px solid {border}; }}
+QFrame#tableRow {{ background: transparent; border: none; border-bottom: 1px solid {border};
+    border-radius: 0px; }}
+QFrame#tableRow[onair="true"] {{ background: {onair_row}; }}
+QLabel#colHeader {{ font-size: 12px; color: {muted}; }}
+QLabel#teamHint {{ font-size: 12px; color: {muted}; }}
 """.format(**c)
 
 
@@ -213,6 +218,11 @@ class StatusIcon(QWidget):
 
     def color(self) -> QColor:
         return QColor(self._colors.get(self.status, self._colors["idle"]))
+
+    def set_status(self, status: str) -> None:
+        if status != self.status:
+            self.status = status
+            self.update()
 
     def sizeHint(self) -> QSize:
         return QSize(self.SIZE, self.SIZE)

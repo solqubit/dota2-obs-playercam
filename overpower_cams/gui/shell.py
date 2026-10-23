@@ -7,8 +7,10 @@ señal `_bg_done` (en cola). Las órdenes al motor (modo, bando, teclas) van por
 en orden, porque el motor llama a OBS con su lock tomado. Los eventos de otros hilos llegan
 por `EventBus` (también en cola).
 
-Páginas: `set_page(key, widget)` cambia una página (Task 11 pone ahí Jugadores y Escena
-OBS). Si la página visible tiene `refresh_live(status)`, se llama cada segundo.
+Páginas: Jugadores (`page_players`), Revisión (`checks_mixin`), Escena OBS (`page_scene`),
+Eventos y Ajustes; `set_page(key, widget)` cambia una. Si la página visible tiene
+`refresh_live(status)`, se llama cada segundo. Al conectar (o reconectar) con OBS se le mandan
+los nombres y links de los jugadores.
 """
 from __future__ import annotations
 
@@ -29,8 +31,10 @@ from ..i18n import get_language, tr, tr_for
 from ..players import TeamsConfig
 from ..storage import LiveState, Settings
 from .checks_mixin import ChecksMixin, pending_count
+from .page_players import PlayersPage
+from .page_scene import ScenePage
 from .page_settings import SettingsPage
-from .sidebar import PAGE_KEYS, Sidebar, nav_title
+from .sidebar import PAGE_KEYS, Sidebar
 from .status_bar import LiveBar, StatusBar, ago_text, clock_text, on_air_text, team_names
 from .widgets import app_style, dot_html, page_layout, status_colors
 
@@ -167,9 +171,14 @@ class Shell(ChecksMixin, QMainWindow):
         self.settings_page = SettingsPage(self._settings, self._portraits, detected_dota=ctx.dota,
                                           on_save=self.apply_settings,
                                           on_forget_portraits=self._portraits_forgotten)
-        built = {"players": self._placeholder("players"),   # Task 11 la cambia con set_page
+        self.players_page = PlayersPage(self.storage, get_obs=lambda: self.obs,
+                                        run_bg=self._run_bg, post_event=self._events.post,
+                                        radiant_team=lambda: self._radiant_team,
+                                        on_teams_changed=lambda: self.refresh_names(force=True))
+        self.scene_page = ScenePage(self)
+        built = {"players": self.players_page,
                  "checks": self._build_checks_page(),
-                 "scene": self._placeholder("scene"),       # Task 11 la cambia con set_page
+                 "scene": self.scene_page,
                  "events": events_page,
                  "settings": self.settings_page}
         for key in PAGE_KEYS:
@@ -182,12 +191,6 @@ class Shell(ChecksMixin, QMainWindow):
         self._refresh_bar(self._clock())
 
     # ------------------------------------------------------------------ páginas
-    @staticmethod
-    def _placeholder(key: str) -> QWidget:
-        page, lay = page_layout(nav_title(key))
-        lay.addStretch(1)
-        return page
-
     def set_page(self, key: str, widget: QWidget) -> None:
         """Cambia la página `key` (misma posición en el menú)."""
         old = self.pages[key]
@@ -208,6 +211,10 @@ class Shell(ChecksMixin, QMainWindow):
                 self._reload_settings_page()
         self.stack.setCurrentWidget(self.pages[key])
         self.nav_buttons[key].setChecked(True)
+        if hasattr(self, "timer"):                 # ya armada: datos al día sin esperar al timer
+            self._refresh_live(self.engine.status())
+            if key == "scene":
+                self.run_checks()
 
     def current_page(self) -> str:
         w = self.stack.currentWidget()
@@ -215,6 +222,7 @@ class Shell(ChecksMixin, QMainWindow):
 
     def _on_checks_rendered(self, results) -> None:
         self.sidebar.set_pending(pending_count(results))
+        self.scene_page.set_results(results, self.obs)
 
     # ------------------------------------------------------------------ hilos
     def _run_bg(self, fn, callback) -> None:
@@ -275,6 +283,8 @@ class Shell(ChecksMixin, QMainWindow):
             self._events.post("[ERROR] " + tr("teclas de Dota: {error}", error=e))
         if self.obs.connected != self._was_connected:
             self._was_connected = self.obs.connected
+            if self.obs.connected:
+                self.players_page.push_all()       # OBS pudo cambiar mientras no estaba
             self.run_checks()
 
     def refresh_names(self, force: bool = False) -> None:
@@ -287,6 +297,7 @@ class Shell(ChecksMixin, QMainWindow):
         self.players = self.storage.load_players()
         self.live_bar.set_team_names(self.teams)
         self.settings_page.set_team_names(self.teams)
+        self.players_page.set_data(self.teams, self.players)
 
     def _obs_state(self) -> tuple[str, str]:
         obs = self.obs

@@ -381,6 +381,67 @@ EN: dict[str, str] = {
     "Más tarde": "Later",
     "No pude volver a abrir la app: {error}": "Couldn't reopen the app: {error}",
 
+    # ---- Jugadores ----
+    "Los cambios se guardan y se aplican en OBS al momento.":
+        "Changes are saved and applied in OBS right away.",
+    "Nombre del equipo": "Team name",
+    "Nombre del jugador": "Player name",
+    "Rol": "Role",
+    "Nombre": "Name",
+    "Cámara (VDO.Ninja)": "Camera (VDO.Ninja)",
+    "Foto (VDO.Ninja)": "Photo (VDO.Ninja)",
+    "Usar": "Use",
+    "Habilidades": "Abilities",
+    "Cámara": "Camera",
+    "Foto": "Photo",
+    "no pude guardar los jugadores: {error}": "couldn't save the players: {error}",
+    "OBS no está conectado: el cambio de {scene} se guardó y se aplica al reconectar":
+        "OBS isn't connected: the change to {scene} was saved and is applied on reconnect",
+    "No pude aplicar en OBS el cambio de {scene}: ¿existe la escena con sus fuentes?":
+        "Couldn't apply the change to {scene} in OBS: does the scene exist with its sources?",
+
+    # ---- Escena OBS ----
+    "Volver a leer": "Read again",
+    "Lo que la app usa de OBS. Nada se cambia sin preguntarte.":
+        "What the app uses from OBS. Nothing is changed without asking you.",
+    "Existe en OBS": "Exists in OBS",
+    "{n} de 10 dentro de «{scene}»": "{n} of 10 inside \"{scene}\"",
+    "Está en «{scene}»": "It's in \"{scene}\"",
+    "Falta en «{scene}»": "Missing from \"{scene}\"",
+    "Falta {name} en «{scene}»": "{name} is missing from \"{scene}\"",
+    "No está en «{scene}»": "Not in \"{scene}\"",
+    "Posición {x}, {y} · escala {sx} / {sy}": "Position {x}, {y} · scale {sx} / {sy}",
+    "Probar": "Test",
+    "Probar activa el filtro sobre la escena al aire, o sobre «{template}» si no hay ninguna.":
+        "Test runs the filter on the scene on air, or on \"{template}\" if there is none.",
+    "Probando {name}": "Testing {name}",
+    "No se pudo probar": "Couldn't test",
+    "No pude activar «{name}». ¿OBS está abierto y conectado?":
+        "Couldn't run \"{name}\". Is OBS open and connected?",
+    "falta": "missing",
+    "faltan: {names}": "missing: {names}",
+    "lista": "ready",
+    "Crear las que faltan copiando «{template}»": "Create the missing ones by copying \"{template}\"",
+    "Voy a crear en OBS estas escenas copiando «{template}» (con sus 4 fuentes, filtros y posición) "
+    "y agregarlas apagadas a «{scene}»:\n\n{names}\n\nNo toco las escenas que ya existen. ¿Sigo?":
+        "I'll create these scenes in OBS by copying \"{template}\" (with its 4 sources, filters and "
+        "position) and add them, hidden, to \"{scene}\":\n\n{names}\n\nScenes that already exist "
+        "aren't touched. Go ahead?",
+    "No se pudieron crear las escenas": "Couldn't create the scenes",
+    "OBS no me dejó terminar la escena «{scene}» ({error}). Ya creé: {done}.\n\n«{scene}» pudo "
+    "quedar a medias: bórrala en OBS antes de volver a intentar.":
+        "OBS didn't let me finish the scene \"{scene}\" ({error}). Already created: {done}.\n\n"
+        "\"{scene}\" may be half-built: delete it in OBS before trying again.",
+    "Imagen del Borde": "Border image",
+    "Leyendo…": "Reading…",
+    "No pude leer la imagen": "Couldn't read the image",
+    "Sin imagen": "No image",
+    "No existe en esta PC: {path}": "Doesn't exist on this PC: {path}",
+    "El Borde se ve solo cuando hay una cámara al aire. Es fijo: no se mueve ni cambia de tamaño "
+    "con la cámara.":
+        "The border shows only while a camera is on air. It's fixed: it doesn't move or resize "
+        "with the camera.",
+
     # ---- Ajustes ----
     "Se guardan solo en esta PC.": "Stored only on this PC.",
     "Dirección de OBS": "OBS address",
