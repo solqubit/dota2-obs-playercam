@@ -7,15 +7,17 @@ os.environ["QT_QPA_PLATFORM"] = "offscreen"   # antes de crear QApplication
 import shutil  # noqa: E402
 import socket  # noqa: E402
 import threading  # noqa: E402
+from dataclasses import replace  # noqa: E402
 from pathlib import Path  # noqa: E402
 
 import pytest  # noqa: E402
-from PySide6.QtWidgets import QApplication, QMessageBox  # noqa: E402
+from PySide6.QtWidgets import QApplication, QLabel, QMessageBox  # noqa: E402
 
-from overpower_cams import app, config, paths  # noqa: E402
+from overpower_cams import app, config, i18n, paths  # noqa: E402
 from overpower_cams.dota_keys import parse_player_keys  # noqa: E402
 from overpower_cams.gsi_server import GsiServer  # noqa: E402
-from overpower_cams.gui.settings_dialog import SettingsDialog  # noqa: E402
+from overpower_cams.gui.page_settings import SettingsPage  # noqa: E402
+from overpower_cams.players import PlayerConfig, TeamsConfig  # noqa: E402
 from overpower_cams.portraits import PortraitModel  # noqa: E402
 from overpower_cams.storage import Settings, Storage  # noqa: E402
 from tests.conftest import FakeObsClient  # noqa: E402
@@ -84,8 +86,11 @@ def test_ventana_se_arma_sin_obs(qapp, appdata):
         win.tick()
         texto = win.obs_label.text()
         assert "OBS" in texto and "reconectando" in texto
+        assert win.obs_detail.text() == "127.0.0.1:4455"
         assert parts.obs.connected is False
-        assert "sin datos" in win.dota_label.text()
+        assert "sin datos" in win.dota_label.text() and win.dota_detail.text() == "nunca"
+        assert "fuera de partida" in win.game_label.text()
+        assert win.on_air_label.text() == "Al aire: ninguna cámara"
         assert win.timer.isActive()
         # las revisiones llegan desde otro hilo y arman una fila por revisión
         assert [r.id for r in win.check_results] == [
@@ -138,7 +143,7 @@ def test_eventos_de_otros_hilos_entran_por_senal(qapp, appdata):
 def test_bando_y_modo_se_guardan(qapp, appdata):
     parts, win = _armar(_obs_cerrado())
     try:
-        win.dire_button.click()
+        win.side_selector.buttons[2].click()
         win.hide_button.click()
         win.wait_background(5)
         st = parts.storage.load_state(1)
@@ -147,13 +152,63 @@ def test_bando_y_modo_se_guardan(qapp, appdata):
         assert parts.engine.status().mode == "hidden"
         assert parts.local_input._worker is None         # con "Ocultar todo" no se escucha
         win.tick()
-        assert win.team1_label.text() == "Equipo 1 (Dire)"
-        assert win.team2_label.text() == "Equipo 2 (Radiant)"
+        assert win.side_selector.buttons[2].isChecked()
+        assert win.on_air_label.text() == "Al aire: nada (Ocultar todo)"
         win.auto_button.click()
         assert parts.local_input._worker is not None
     finally:
         win.close()
     assert parts.local_input._worker is None
+
+
+def test_selector_de_bando_usa_los_nombres_de_equipo(qapp, appdata):
+    Storage(paths.app_data_dir()).save_teams(TeamsConfig("Team Liquid", ""))
+    parts, win = _armar(_obs_cerrado())
+    try:
+        textos = [b.text() for b in win.side_selector.buttons.values()]
+        assert textos == ["Team Liquid", "Equipo 2"]       # vacío: "Equipo 2"
+        parts.storage.save_teams(TeamsConfig("Team Liquid", "Gaimin Gladiators"))
+        win.tick()                                       # se actualiza si cambian
+        assert win.side_selector.buttons[2].text() == "Gaimin Gladiators"
+        win.side_selector.buttons[2].click()
+        qapp.processEvents()
+        assert any("Radiant es: Gaimin Gladiators" in l for l in win.event_lines())
+    finally:
+        win.close()
+
+
+def test_menu_lateral_recorre_las_5_paginas(qapp, appdata):
+    parts, win = _armar(_obs_cerrado())
+    try:
+        assert list(win.nav_buttons) == ["players", "checks", "scene", "events", "settings"]
+        assert win.current_page() == "players"
+        for key, button in win.nav_buttons.items():
+            button.click()
+            assert win.current_page() == key and button.isChecked()
+            assert win.stack.currentWidget() is win.pages[key]
+        assert win.pages["settings"] is win.settings_page
+        # Task 11 cambia las páginas de relleno por las reales
+        nueva = QLabel("nueva")
+        win.set_page("scene", nueva)
+        assert win.pages["scene"] is nueva and win.stack.indexOf(nueva) == 2
+        win.show_page("scene")
+        assert win.stack.currentWidget() is nueva
+    finally:
+        win.close()
+
+
+def test_insignia_de_revision_cuenta_pendientes(qapp, appdata):
+    parts, win = _armar(_obs_cerrado())
+    try:
+        win.run_checks()
+        _esperar(qapp, win)
+        pendientes = sum(r.status in ("warn", "error") for r in win.check_results)
+        assert pendientes > 0
+        assert win.checks_badge.text() == str(pendientes) and not win.checks_badge.isHidden()
+        win._render_checks([])
+        assert win.checks_badge.isHidden()
+    finally:
+        win.close()
 
 
 def test_ajustes_nuevos_crean_otro_obs(qapp, appdata):
@@ -170,6 +225,13 @@ def test_ajustes_nuevos_crean_otro_obs(qapp, appdata):
         actual = win.obs
         win.apply_settings(Settings(4460, "otra", None, 1))
         assert win.obs is actual
+        # otra dirección u otra escena principal: sí
+        win.apply_settings(Settings(4460, "otra", None, 1, main_scene="Otra", obs_host="10.0.0.5"))
+        assert win.obs is not actual and parts.sink.obs is win.obs
+        assert (win.obs.host, win.obs.main_scene) == ("10.0.0.5", "Otra")
+        win.tick()
+        assert win.obs_detail.text() == "10.0.0.5:4460"
+        assert not any("otra" in l for l in win.event_lines())   # nunca la contraseña
     finally:
         win.close()
 
@@ -209,21 +271,73 @@ def test_puerto_ocupado_avisa_y_no_arranca(qapp, monkeypatch):
         ocupado.close()
 
 
-def test_dialogo_de_ajustes(qapp, monkeypatch):
+def test_pagina_de_ajustes(qapp, monkeypatch):
     s = Settings(obs_port=4455, obs_password="secreto", dota_dir=None, default_radiant_team=1)
     pm = PortraitModel({"r1": [-0.4, 0.03, 3]})
-    dlg = SettingsDialog(s, pm)
-    assert dlg.password_edit.text() == "secreto"
-    dlg.password_edit.setText("nueva")
-    dlg.port_spin.setValue(4456)
-    dlg.team_combo.setCurrentIndex(1)
+    olvidados = []
+    page = SettingsPage(s, pm, teams=TeamsConfig("Liquid", "GG"),
+                        on_forget_portraits=lambda: olvidados.append(True))
+    assert page.password_edit.text() == "secreto"
+    assert page.main_scene_edit.text() == "Juego" and page.host_edit.text() == "127.0.0.1"
+    assert [page.team_combo.itemText(i) for i in range(2)] == ["Liquid", "GG"]
+    page.password_edit.setText("nueva")
+    page.port_spin.setValue(4456)
+    page.team_combo.setCurrentIndex(1)
+    page.mode_combo.setCurrentIndex(page.mode_combo.findData("hidden"))
+    page.main_scene_edit.setText("  Partida ")
     monkeypatch.setattr(QMessageBox, "question",
                         lambda *a, **k: QMessageBox.StandardButton.Yes)
-    dlg.forget_button.click()
-    assert pm.as_dict() == {} and dlg.portraits_forgotten
-    assert dlg.values() == Settings(4456, "nueva", None, 2, language="es")   # el idioma en uso
+    page.forget_button.click()
+    assert pm.as_dict() == {} and olvidados == [True]
+    assert page.values() == Settings(4456, "nueva", None, 2, language="es", main_scene="Partida",
+                                     default_mode="hidden")
     assert s.obs_password == "secreto"                   # no toca el original
-    dlg.close()
+    page.main_scene_edit.setText(" ")
+    page.host_edit.setText("")
+    assert (page.values().main_scene, page.values().obs_host) == ("Juego", "127.0.0.1")
+    page.revert_button.click()                           # descarta lo no guardado
+    assert page.values() == replace(s, language="es")
+    page.close()
+
+
+def test_ajustes_guarda_main_scene_desde_la_pagina(qapp, appdata):
+    parts, win = _armar(_obs_cerrado())
+    try:
+        win.show_page("settings")
+        win.settings_page.main_scene_edit.setText("Partida")
+        win.settings_page.save_button.click()
+        assert parts.storage.load_settings().main_scene == "Partida"
+        assert win.obs.main_scene == "Partida" and parts.sink.obs is win.obs
+    finally:
+        win.close()
+
+
+def test_abrir_ajustes_con_explicacion(qapp, appdata):
+    parts, win = _armar(_obs_cerrado())
+    try:
+        win.open_settings(intro="Falta algo")
+        assert win.current_page() == "settings"
+        assert win.settings_page.intro_label.text() == "Falta algo"
+        assert not win.settings_page.intro_label.isHidden()
+        win.open_settings()
+        assert win.settings_page.intro_label.isHidden()
+    finally:
+        win.close()
+
+
+def test_olvidar_retratos_desde_ajustes_los_guarda(qapp, appdata, monkeypatch):
+    Storage(paths.app_data_dir()).save_portraits({"r1": [-0.4, 0.03, 3]})
+    parts, win = _armar(_obs_cerrado())
+    assert parts.portraits.as_dict() != {}
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.Yes)
+    try:
+        win.show_page("settings")
+        win.settings_page.forget_button.click()
+        qapp.processEvents()
+        assert parts.storage.load_portraits(None) == {}
+        assert any("Retratos olvidados" in l for l in win.event_lines())
+    finally:
+        win.close()
 
 
 def _post(port, payload):
@@ -238,17 +352,23 @@ def _post(port, payload):
 def test_post_de_gsi_enciende_camara_y_se_ve_en_la_ventana(qapp, appdata):
     from tests.conftest import fake_camaraman, gsi_payload
     fake = fake_camaraman()
+    storage = Storage(paths.app_data_dir())
+    jugadores = storage.load_players()
+    jugadores["1 Offlaner"] = PlayerConfig(name="Ceb", camera_url="https://vdo.ninja/?view=x")
+    storage.save_players(jugadores)
     parts, win = _armar(fake)
     try:
         win.tick()
         _esperar(qapp, win)                              # conecta a OBS (falso)
-        assert _post(parts.gsi.server_port, gsi_payload("r3")) == 200
+        payload = gsi_payload("r3")
+        payload["map"]["clock_time"] = 754
+        assert _post(parts.gsi.server_port, payload) == 200
         assert fake.is_enabled("1 Offlaner", "Juego") is True and fake.is_enabled("Borde") is True
         win.tick()
         qapp.processEvents()
-        assert "1 Offlaner" in win.on_air_label.text()
-        assert "datos llegando" in win.dota_label.text()
-        assert "en juego" in win.game_label.text()
+        assert win.on_air_label.text() == "Al aire: Ceb · 1 Offlaner · Test2 · 4 habilidades"
+        assert "datos llegando" in win.dota_label.text() and win.dota_detail.text() == "hace 0 s"
+        assert "en juego" in win.game_label.text() and win.game_detail.text() == "12:34"
         assert any("→ 1 Offlaner" in l for l in win.event_lines())
         # "Ocultar todo" apaga la cámara y los acompañantes
         win.hide_button.click()
@@ -316,17 +436,17 @@ def test_buscar_dota_en_ajustes_rechaza_una_carpeta_que_no_es_dota(qapp, tmp_pat
     cualquiera.mkdir()
     dota = tmp_path / "dota 2 beta"
     (dota / "game" / "dota").mkdir(parents=True)
-    dlg = SettingsDialog(Settings(), PortraitModel({}))
+    page = SettingsPage(Settings(), PortraitModel({}))
     monkeypatch.setattr("PySide6.QtWidgets.QFileDialog.getExistingDirectory",
                         lambda *a, **k: str(cualquiera))
-    dlg._browse_dota()
-    assert dlg.values().dota_dir is None and len(avisos) == 1
+    page._browse_dota()
+    assert page.values().dota_dir is None and len(avisos) == 1
     assert "falta game" in avisos[0][2]
     monkeypatch.setattr("PySide6.QtWidgets.QFileDialog.getExistingDirectory",
                         lambda *a, **k: str(dota))
-    dlg._browse_dota()
-    assert dlg.values().dota_dir == str(dota) and len(avisos) == 1
-    dlg.close()
+    page._browse_dota()
+    assert page.values().dota_dir == str(dota) and len(avisos) == 1
+    page.close()
 
 
 def test_buscar_dota_en_la_ventana_rechaza_una_carpeta_que_no_es_dota(qapp, appdata, tmp_path,
@@ -350,26 +470,25 @@ def test_buscar_dota_en_la_ventana_rechaza_una_carpeta_que_no_es_dota(qapp, appd
 # ---------------------------------------------------------------------------
 # Idioma
 # ---------------------------------------------------------------------------
-from overpower_cams import i18n  # noqa: E402
-from PySide6.QtWidgets import QLabel  # noqa: E402
-
 
 def test_ventana_en_ingles(qapp, appdata):
     i18n.set_language("en")                      # el fixture de conftest lo vuelve a "es"
     parts, win = _armar(_obs_cerrado())
     try:
         assert win.windowTitle() == "OverPower · Dota Player Cams" == config.app_name()
-        assert win.settings_button.text() == "⚙ Settings"
+        assert [b.text().split(" ", 1)[1] for b in win.nav_buttons.values()] == [
+            "Players", "Checks", "OBS scene", "Events", "Settings"]
         assert win.recheck_button.text() == "↻ Re-check everything"
         assert (win.auto_button.text(), win.hide_button.text()) == ("Automatic", "Hide all")
+        assert [b.text() for b in win.side_selector.buttons.values()] == ["Team 1", "Team 2"]
         labels = {lbl.text() for lbl in win.findChildren(QLabel)}
-        assert {"CHECKS", "LIVE", "RECENT EVENTS", "Team 1 side", "Status", "Mode"} <= labels
-        assert win.team1_label.text() == "Team 1 (Radiant)"
-        assert "On air:" in win.on_air_label.text()
+        assert {"Radiant is", "Mode", "Checks", "Events", "Settings", "OBS scene"} <= labels
+        assert win.on_air_label.text() == "On air: no camera"
         win.tick()
         _esperar(qapp, win)
         win.tick()
         assert "reconnecting" in win.obs_label.text() and "no data" in win.dota_label.text()
+        assert win.dota_detail.text() == "never"
         win.run_checks()
         _esperar(qapp, win)
         obs_row = next(r for r in win.check_results if r.id == "obs")
@@ -380,34 +499,34 @@ def test_ventana_en_ingles(qapp, appdata):
         win.close()
 
 
-def test_dialogo_de_ajustes_en_ingles_y_combo_de_idioma(qapp):
+def test_pagina_de_ajustes_en_ingles_y_combo_de_idioma(qapp):
     i18n.set_language("en")
-    dlg = SettingsDialog(Settings(language=None), PortraitModel({}))
+    page = SettingsPage(Settings(language=None), PortraitModel({}))
     try:
-        assert dlg.windowTitle() == "Settings · OverPower · Dota Player Cams"
-        assert dlg.show_button.text() == "Show"
-        labels = {lbl.text() for lbl in dlg.findChildren(QLabel)}
-        assert {"OBS port", "Dota folder", "Language / Idioma"} <= labels
-        combo = dlg.language_combo
+        assert page.show_button.text() == "Show"
+        labels = {lbl.text() for lbl in page.findChildren(QLabel)}
+        assert {"OBS port", "Dota folder", "Language / Idioma", "Main scene", "OBS address",
+                "Radiant at startup", "Initial mode"} <= labels
+        assert [page.team_combo.itemText(i) for i in range(2)] == ["Team 1", "Team 2"]
+        combo = page.language_combo
         assert [combo.itemText(i) for i in range(combo.count())] == ["Español", "English"]
         assert combo.currentData() == "en"           # sin idioma guardado: el que está en uso
         combo.setCurrentIndex(0)
-        assert dlg.values().language == "es"
+        assert page.values().language == "es"
     finally:
-        dlg.close()
+        page.close()
 
 
 def test_combo_de_idioma_muestra_el_guardado(qapp):
-    dlg = SettingsDialog(Settings(language="en"), PortraitModel({}))
+    page = SettingsPage(Settings(language="en"), PortraitModel({}))
     try:
-        assert dlg.language_combo.currentData() == "en"
+        assert page.language_combo.currentData() == "en"
     finally:
-        dlg.close()
+        page.close()
 
 
 def _con_idioma(parts, code):
-    s = parts.settings
-    return Settings(s.obs_port, s.obs_password, s.dota_dir, s.default_radiant_team, language=code)
+    return replace(parts.settings, language=code)
 
 
 def test_cambiar_idioma_guarda_y_ofrece_reiniciar(qapp, appdata, monkeypatch):
@@ -427,12 +546,15 @@ def test_cambiar_idioma_guarda_y_ofrece_reiniciar(qapp, appdata, monkeypatch):
         win.close()
 
 
-def test_reiniciar_ahora_cierra_y_vuelve_a_abrir(qapp, appdata, monkeypatch):
+def test_reiniciar_ahora_desde_la_pagina_cierra_y_vuelve_a_abrir(qapp, appdata, monkeypatch):
     parts, win = _armar(_obs_cerrado())
     orden = []
     monkeypatch.setattr(win, "ask_restart", lambda code: True)
     win._relaunch = lambda: orden.append(("relanzar", parts.gsi._httpd is None))
-    win.apply_settings(_con_idioma(parts, "en"))
+    win.show_page("settings")
+    combo = win.settings_page.language_combo
+    combo.setCurrentIndex(combo.findData("en"))
+    win.settings_page.save_button.click()
     assert orden == [("relanzar", True)]               # el puerto GSI ya se liberó al relanzar
     assert win._closed
     assert parts.storage.load_settings().language == "en"
@@ -462,6 +584,16 @@ def test_apply_language_usa_el_guardado_o_el_de_windows(monkeypatch):
     assert app.apply_language(s) == "en" and i18n.get_language() == "en"
     assert s.language is None                          # el detectado no se guarda solo
     assert app.apply_language(Settings(language="es")) == "es" and i18n.get_language() == "es"
+
+
+def test_estado_inicial_usa_el_modo_de_ajustes(qapp, appdata):
+    Storage(paths.app_data_dir()).save_settings(Settings(default_mode="hidden"))
+    parts, win = _armar(_obs_cerrado())
+    try:
+        assert parts.state.mode == "hidden" and parts.engine.status().mode == "hidden"
+        assert win.hide_button.isChecked()
+    finally:
+        win.close()
 
 
 def test_comando_para_reabrir(monkeypatch):

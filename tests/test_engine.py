@@ -377,3 +377,14 @@ def test_habilidades_con_la_forma_real_de_gsi(fx):
     assert fx.engine._abilities["team2.player1"] == 5    # Kez
     assert fx.engine._abilities["team3.player9"] == 4    # Axe
     assert fx.sink.calls[-1] == ("1 Hard carry", "GSI", 6)
+
+
+def test_status_expone_el_reloj_de_la_partida(fx):
+    assert fx.engine.status().clock_time is None
+    p = gsi_payload("r1")
+    p["map"]["clock_time"] = 754
+    fx.engine.process(p)
+    assert fx.engine.status().clock_time == 754
+    p["map"]["clock_time"] = "basura"
+    fx.engine.process(p)
+    assert fx.engine.status().clock_time is None

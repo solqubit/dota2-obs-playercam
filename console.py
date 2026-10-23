@@ -145,12 +145,12 @@ def main() -> int:
     settings = storage.load_settings()
     set_language(settings.language or detect_default())   # antes de cualquier texto
     print("=== Dota 2 GSI -> OBS ===")
-    state = storage.load_state(settings.default_radiant_team)
+    state = storage.load_state(settings.default_radiant_team, settings.default_mode)
     portraits = PortraitModel(storage.load_portraits(Path(__file__).resolve().parent / "input_map.json"))
     steam = paths.steam_path()
     keys = read_player_keys(paths.dota_keys_file(steam))
 
-    obs = ObsLink(config.OBS_HOST, settings.obs_port, settings.obs_password,
+    obs = ObsLink(settings.obs_host, settings.obs_port, settings.obs_password,
                   main_scene=settings.main_scene, players_provider=storage.load_players,
                   on_event=lambda text: print(f"[OBS] {text}"))
     engine = Engine(ObsSink(obs), portraits, keys, radiant_team=state.radiant_team, mode=state.mode,

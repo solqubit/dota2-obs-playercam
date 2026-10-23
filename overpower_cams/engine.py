@@ -110,6 +110,7 @@ class EngineStatus:
     game_state: str | None
     roster: dict[str, str] = field(default_factory=dict)
     abilities: dict[str, int] = field(default_factory=dict)   # escena -> preset (4/5/6)
+    clock_time: int | None = None   # reloj de la partida (map.clock_time, en segundos)
 
 
 class Engine:
@@ -137,6 +138,7 @@ class Engine:
         self._current_key = None             # héroe al aire según el motor (incluye predicciones locales)
         self._no_hero_since = None
         self._game_state = None
+        self._clock_time = None
         self._last_gsi_key = None            # la selección según GSI (sin predicciones locales)
         self._last_change_t = 0.0            # cuándo GSI reportó el último cambio de selección
         self._recent_inputs = []             # [(t, kind, value)] de los últimos LEARN_LOOKBACK s
@@ -187,7 +189,8 @@ class Engine:
         return EngineStatus(
             mode=self._mode, radiant_team=rt, camera=self._camera,
             hero=self._hero_names.get(key, key) if key else None,
-            game_state=self._game_state, roster=roster, abilities=abilities)
+            game_state=self._game_state, roster=roster, abilities=abilities,
+            clock_time=self._clock_time)
 
     # ---------- internos (con el lock tomado) ----------
 
@@ -246,8 +249,11 @@ class Engine:
 
         # El estado de la partida se anota siempre (también oculto) para que la ventana no
         # muestre datos viejos.
-        state = safe_dict(data.get("map")).get("game_state")
+        game_map = safe_dict(data.get("map"))
+        state = game_map.get("game_state")
         self._game_state = state
+        clock = game_map.get("clock_time")
+        self._clock_time = clock if isinstance(clock, int) and not isinstance(clock, bool) else None
 
         self._select(data, state)
         self._retrigger_if_changed()

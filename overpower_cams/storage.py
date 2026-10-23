@@ -10,7 +10,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 
-from .config import DEFAULT_MAIN_SCENE, DEFAULT_OBS_PORT, PLAYER_SCENES
+from .config import DEFAULT_MAIN_SCENE, DEFAULT_OBS_PORT, OBS_HOST, PLAYER_SCENES
 from .i18n import LANGUAGES
 from .players import USES, PlayerConfig, TeamsConfig
 
@@ -25,6 +25,8 @@ class Settings:
     default_radiant_team: int = 1
     language: str | None = None   # "es" | "en"; None = el idioma de Windows
     main_scene: str = DEFAULT_MAIN_SCENE
+    obs_host: str = OBS_HOST
+    default_mode: str = "auto"    # modo inicial si no hay estado guardado
 
 
 @dataclass
@@ -81,14 +83,18 @@ class Storage:
             s.language = raw["language"]
         if isinstance(raw.get("main_scene"), str) and raw["main_scene"].strip():
             s.main_scene = raw["main_scene"]
+        if isinstance(raw.get("obs_host"), str) and raw["obs_host"].strip():
+            s.obs_host = raw["obs_host"].strip()
+        if raw.get("default_mode") in MODES:
+            s.default_mode = raw["default_mode"]
         return s
 
     def save_settings(self, s: Settings) -> None:
         self._write_json(self.base / "settings.json", asdict(s))
 
     # ---- estado vivo ----
-    def load_state(self, default_radiant_team: int) -> LiveState:
-        st = LiveState(default_radiant_team, "auto")
+    def load_state(self, default_radiant_team: int, default_mode: str = "auto") -> LiveState:
+        st = LiveState(default_radiant_team, default_mode if default_mode in MODES else "auto")
         raw = self._read_json(self.base / "state.json")
         if not isinstance(raw, dict):
             return st

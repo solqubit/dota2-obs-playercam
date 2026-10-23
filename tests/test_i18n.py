@@ -98,7 +98,7 @@ def test_tr_en_ingles_traduce_y_formatea():
     set_language("en")
     assert tr("Ajustes") == "Settings"
     assert tr("Revisión") == "Checks"
-    assert tr("En vivo") == "Live"
+    assert tr("Eventos") == "Events"
     assert tr("Conectado a OBS en {host}:{port}", host="127.0.0.1", port=4455) == \
         "Connected to OBS at 127.0.0.1:4455"
     assert tr("Los 10 ubicados ({n} afinados con tus clicks)", n=3) == \

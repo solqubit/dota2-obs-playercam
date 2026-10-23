@@ -18,7 +18,7 @@ from .engine import Engine
 from .gsi_server import GsiServer, PortInUse
 from .i18n import detect_default, set_language, tr
 from .gui.events import EventBus
-from .gui.main_window import MainWindow
+from .gui.shell import Shell
 from .local_input import LocalInput
 from .obs_link import ObsLink
 from .portraits import PortraitModel
@@ -88,7 +88,7 @@ class AppParts:
 
     def make_obs(self, settings: Settings) -> ObsLink:
         """ObsLink nuevo con los ajustes dados; desde ya el motor manda las cámaras a él."""
-        obs = ObsLink(config.OBS_HOST, settings.obs_port, settings.obs_password,
+        obs = ObsLink(settings.obs_host, settings.obs_port, settings.obs_password,
                       main_scene=settings.main_scene, players_provider=self.storage.load_players,
                       client_factory=self.obs_client_factory, on_event=self.events.post)
         self.obs = obs
@@ -107,7 +107,7 @@ def build_app(storage: Storage, *, steam=_AUTO, obs_client_factory=obsws_python.
         legacy_portraits = legacy_input_map()
     events = EventBus()
     settings = storage.load_settings()
-    state = storage.load_state(settings.default_radiant_team)
+    state = storage.load_state(settings.default_radiant_team, settings.default_mode)
     portraits = PortraitModel(storage.load_portraits(legacy_portraits))
 
     def save_portraits():   # corre con el lock del motor: solo escribe el archivo
@@ -131,8 +131,8 @@ def build_app(storage: Storage, *, steam=_AUTO, obs_client_factory=obsws_python.
     return parts
 
 
-def create_window(parts: AppParts, *, is_running=paths.is_running) -> MainWindow:
-    return MainWindow(parts.make_ctx, parts.engine, parts.obs, parts.gsi, parts.local_input,
+def create_window(parts: AppParts, *, is_running=paths.is_running) -> Shell:
+    return Shell(parts.make_ctx, parts.engine, parts.obs, parts.gsi, parts.local_input,
                       parts.storage, events=parts.events, obs_factory=parts.make_obs,
                       is_running=is_running)
 
@@ -223,7 +223,7 @@ def _run() -> int:
             parts.local_input.start()
         except Exception as e:  # noqa: BLE001 - sin teclado/mouse la app sigue con GSI
             parts.events.post("[ERROR] " + tr("no pude escuchar teclado y mouse: {error}", error=e))
-    win.show()   # si OBS rechaza la contraseña vacía, la ventana abre Ajustes una vez
+    win.show()   # si OBS rechaza la contraseña vacía, la ventana va a Ajustes una vez
     return qapp.exec()
 
 

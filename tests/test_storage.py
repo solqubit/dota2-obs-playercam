@@ -156,3 +156,25 @@ def test_players_json_incompleto_o_invalido(tmp_path):
     assert d["1 Hard carry"] == PlayerConfig(name="Z")
     assert d["2 Offlaner"] == PlayerConfig()
     assert st.load_teams() == TeamsConfig("", "B")
+
+
+def test_settings_v1_sin_host_ni_modo_inicial_usan_los_de_siempre(tmp_path):
+    (tmp_path / "settings.json").write_text(
+        json.dumps({"obs_port": 4455, "obs_password": "", "default_radiant_team": 1}), encoding="utf-8")
+    s = Storage(tmp_path).load_settings()
+    assert s.obs_host == "127.0.0.1" and s.default_mode == "auto"
+
+
+def test_host_y_modo_inicial_ida_y_vuelta(tmp_path):
+    st = Storage(tmp_path)
+    st.save_settings(Settings(obs_host="192.168.0.10", default_mode="hidden"))
+    s = st.load_settings()
+    assert (s.obs_host, s.default_mode) == ("192.168.0.10", "hidden")
+    (tmp_path / "settings.json").write_text(json.dumps({"obs_host": " ", "default_mode": "x"}),
+                                            encoding="utf-8")
+    s = st.load_settings()
+    assert (s.obs_host, s.default_mode) == ("127.0.0.1", "auto")
+
+
+def test_estado_sin_guardar_usa_el_modo_inicial(tmp_path):
+    assert Storage(tmp_path).load_state(2, "hidden") == LiveState(2, "hidden")
