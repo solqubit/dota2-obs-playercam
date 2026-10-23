@@ -158,7 +158,7 @@ def test_escena_inexistente():
     report = link.load_items()
     assert report.scene_found is False
     assert report.missing_cameras == config.CAMERAS_TEAM1 + config.CAMERAS_TEAM2
-    assert report.missing_companions == config.COMPANIONS
+    assert report.missing_companions == config.COMPANIONS_V1
     assert link.connected is True
 
 

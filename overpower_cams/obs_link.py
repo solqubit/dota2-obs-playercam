@@ -148,16 +148,16 @@ class ObsLink:
                 except OBSSDKRequestError as e:
                     if e.code != _RESOURCE_NOT_FOUND:
                         raise
-                    self.report = ItemReport(list(ALL_CAMERAS), list(config.COMPANIONS), False)
+                    self.report = ItemReport(list(ALL_CAMERAS), list(config.COMPANIONS_V1), False)
                     self._emit(tr("La escena '{scene}' no existe en OBS", scene=config.SCENE_NAME))
                     return self.report
 
                 report = ItemReport(
                     missing_cameras=[n for n in ALL_CAMERAS if n not in found],
-                    missing_companions=[n for n in config.COMPANIONS if n not in found],
+                    missing_companions=[n for n in config.COMPANIONS_V1 if n not in found],
                     scene_found=True,
                 )
-                for name in ALL_CAMERAS + config.COMPANIONS:
+                for name in ALL_CAMERAS + config.COMPANIONS_V1:
                     if name in found:
                         self._items[name] = found[name]
                 self._hide_all()
@@ -170,7 +170,7 @@ class ObsLink:
 
     def items_stale(self, found: dict[str, tuple[str, int]]) -> bool:
         """True si lo que hay hoy en la escena (`found`) no coincide con los IDs cargados."""
-        wanted = {n: found[n] for n in ALL_CAMERAS + config.COMPANIONS if n in found}
+        wanted = {n: found[n] for n in ALL_CAMERAS + config.COMPANIONS_V1 if n in found}
         return wanted != self._items
 
     def refresh_items(self) -> ItemReport:
@@ -182,7 +182,7 @@ class ObsLink:
             if not self.connected or self._client is None:
                 return ItemReport(
                     [n for n in ALL_CAMERAS if n not in self._items],
-                    [n for n in config.COMPANIONS if n not in self._items], True)
+                    [n for n in config.COMPANIONS_V1 if n not in self._items], True)
             try:
                 try:
                     found = self.find_scene_items()
@@ -190,15 +190,15 @@ class ObsLink:
                     if e.code != _RESOURCE_NOT_FOUND:
                         raise
                     self._items = {}
-                    self.report = ItemReport(list(ALL_CAMERAS), list(config.COMPANIONS), False)
+                    self.report = ItemReport(list(ALL_CAMERAS), list(config.COMPANIONS_V1), False)
                     return self.report
-                self._items = {n: found[n] for n in ALL_CAMERAS + config.COMPANIONS if n in found}
+                self._items = {n: found[n] for n in ALL_CAMERAS + config.COMPANIONS_V1 if n in found}
             except Exception as e:  # noqa: BLE001
                 self._fail(e)
                 raise
             self.report = ItemReport(
                 missing_cameras=[n for n in ALL_CAMERAS if n not in self._items],
-                missing_companions=[n for n in config.COMPANIONS if n not in self._items],
+                missing_companions=[n for n in config.COMPANIONS_V1 if n not in self._items],
                 scene_found=True)
             return self.report
 
@@ -208,7 +208,7 @@ class ObsLink:
         self._client.set_scene_item_enabled(container, item_id, enabled)
 
     def _set_companions(self, enabled: bool):
-        for name in config.COMPANIONS:
+        for name in config.COMPANIONS_V1:
             if name in self._items:
                 self._set_enabled(name, enabled)
 

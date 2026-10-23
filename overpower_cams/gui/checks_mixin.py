@@ -69,7 +69,7 @@ class ChecksMixin:
         elif r.instructions:
             out.append(self._button(tr("Ver instrucciones"), lambda r=r: self._show_instructions(r)))
         if r.id == "companion_images":
-            for name in config.COMPANIONS:
+            for name in config.COMPANIONS_V1:
                 out.append(self._button(tr("Buscar… {name}", name=name),
                                         lambda n=name: self._browse_companion(n)))
         return out

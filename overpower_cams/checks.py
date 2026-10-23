@@ -131,7 +131,7 @@ class _Scan:
 
     @property
     def missing_companions(self) -> list[str]:
-        return [n for n in config.COMPANIONS if n not in (self.found or {})]
+        return [n for n in config.COMPANIONS_V1 if n not in (self.found or {})]
 
 
 def _scan_scene(obs: ObsLink) -> _Scan:
@@ -295,7 +295,7 @@ def _check_companion_images(ctx: Context, scan: _Scan, **_) -> CheckResult:
     if scan.state != "ok":
         return _res("companion_images", "warn", tr("Sin revisar: OBS no está conectado"))
     problemas: dict[str, str] = {}
-    for name in config.COMPANIONS:
+    for name in config.COMPANIONS_V1:
         if name in scan.found:
             p = _image_problem(ctx, name)
             if p:
@@ -434,7 +434,7 @@ def _fix_companion_images(ctx: Context) -> str:
     scan = _scan_scene(ctx.obs)
     if scan.state != "ok":
         raise FixRefused(tr("No puedo arreglar las imágenes: OBS no está conectado"))
-    con_problema = [n for n in config.COMPANIONS
+    con_problema = [n for n in config.COMPANIONS_V1
                     if n in scan.found and _image_problem(ctx, n) is not None]
     if not con_problema:
         raise FixRefused(tr("Los acompañantes ya tienen imagen"))

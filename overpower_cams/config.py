@@ -11,15 +11,32 @@ def app_name() -> str:
     return tr("OverPower · Cámaras Dota")
 
 
-SCENE_NAME = "Escena Dota"   # Nombre de la escena principal en OBS
+# Escenas de jugador (v2), en orden de posición: equipo 1 y luego equipo 2.
+ROLES = ["Hard carry", "Mid laner", "Offlaner", "Soft support", "Hard support"]
+PLAYER_SCENES_TEAM1 = [f"1 {r}" for r in ROLES]
+PLAYER_SCENES_TEAM2 = [f"2 {r}" for r in ROLES]
+PLAYER_SCENES = PLAYER_SCENES_TEAM1 + PLAYER_SCENES_TEAM2
 
-# Cámaras de cada EQUIPO, en orden de slot (team_slot 0..4). Son fuentes o grupos,
-# buscados en cualquier lugar de SCENE_NAME.
-CAMERAS_TEAM1 = ["CAM_EQ1_1", "CAM_EQ1_2", "CAM_EQ1_3", "CAM_EQ1_4", "CAM_EQ1_5"]
-CAMERAS_TEAM2 = ["CAM_EQ2_1", "CAM_EQ2_2", "CAM_EQ2_3", "CAM_EQ2_4", "CAM_EQ2_5"]
+DEFAULT_MAIN_SCENE = "Juego"   # escena principal por defecto (configurable en Ajustes)
 
-# Acompañantes: visibles ÚNICAMENTE mientras hay una cámara al aire. Opcionales.
-COMPANIONS = ["Borde", "Marco"]
+# Filtros Move Source de la escena principal, según el número de habilidades.
+HUD_FILTERS = {4: "H 4 habilidades", 5: "H 5 habilidades", 6: "H 6 habilidades"}
+MOVE_FILTER_KIND = "move_source_filter"
+
+
+def source_name(kind: str, scene: str) -> str:
+    """Nombre de una fuente de escena: kind en {"Camara", "Foto", "Fondo", "Nombre"}."""
+    return f"{kind} · {scene}"
+
+
+# Acompañantes: visibles ÚNICAMENTE mientras hay una escena de jugador al aire.
+COMPANIONS = ["Borde"]
+
+# --- Restos de v1 (alias hasta que migren sus últimos consumidores) ---
+SCENE_NAME = "Escena Dota"   # v1: escena principal
+CAMERAS_TEAM1 = ["CAM_EQ1_1", "CAM_EQ1_2", "CAM_EQ1_3", "CAM_EQ1_4", "CAM_EQ1_5"]   # v1
+CAMERAS_TEAM2 = ["CAM_EQ2_1", "CAM_EQ2_2", "CAM_EQ2_3", "CAM_EQ2_4", "CAM_EQ2_5"]   # v1
+COMPANIONS_V1 = ["Borde", "Marco"]   # v1: acompañantes con Marco
 
 # Estados de partida (map.game_state) en los que SÍ se muestran cámaras.
 LIVE_STATES = {

@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 from types import SimpleNamespace
 
-from overpower_cams.config import CAMERAS_TEAM1, CAMERAS_TEAM2, COMPANIONS, SCENE_NAME
+from overpower_cams.config import CAMERAS_TEAM1, CAMERAS_TEAM2, COMPANIONS_V1, SCENE_NAME
 from overpower_cams.obs_link import ObsLink
 
 EJEMPLO = Path(__file__).resolve().parent.parent / "obs" / "example-scene.json"
@@ -63,7 +63,7 @@ def test_arranca_todo_oculto():
     escena = next(s for s in col["sources"] if s["name"] == SCENE_NAME)
     visibles = {i["name"] for i in escena["settings"]["items"]
                 if i["visible"] and not i.get("group_item_backup")}
-    assert not visibles & set(CAMERAS_TEAM1 + CAMERAS_TEAM2 + COMPANIONS)
+    assert not visibles & set(CAMERAS_TEAM1 + CAMERAS_TEAM2 + COMPANIONS_V1)
 
 
 def test_sin_rutas_ni_datos_personales():
@@ -72,6 +72,6 @@ def test_sin_rutas_ni_datos_personales():
     assert not re.search(r"(?i)https?://", texto)             # enlaces a terceros
     col = json.loads(texto)
     for s in col["sources"]:
-        if s["name"] in COMPANIONS:
+        if s["name"] in COMPANIONS_V1:
             assert "file" not in s["settings"]                # la app ofrece "Arreglar"
     assert col["AuxAudioDevice1"]["settings"] == {"device_id": "default"}

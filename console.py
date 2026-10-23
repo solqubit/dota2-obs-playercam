@@ -91,7 +91,7 @@ def show_items(obs):
     if not report.scene_found:
         print("[OBS] " + tr("La escena '{scene}' no existe en OBS", scene=config.SCENE_NAME) + ".")
         return
-    for name in ALL_CAMERAS + config.COMPANIONS:
+    for name in ALL_CAMERAS + config.COMPANIONS_V1:
         if name in report.missing_cameras or name in report.missing_companions:
             print("  [WARN] " + tr("{name} no está en la escena", name=name))
         else:
