@@ -243,6 +243,119 @@ def test_guardar_que_falla_deshace_el_cambio_y_se_reintenta(qapp, appdata, monke
         win.close()
 
 
+def test_mostrar_desmarcado_guarda_y_oculta_al_jugador_en_obs(qapp, appdata):
+    storage = Storage(paths.app_data_dir())
+    jugadores = storage.load_players()
+    jugadores["1 Offlaner"] = PlayerConfig("Ceb", "https://vdo.ninja/?view=c", "")
+    storage.save_players(jugadores)
+    fake = _fake()
+    parts, win = _armar(fake)
+    try:
+        _conectar(qapp, win)
+        row = win.players_page.rows["1 Offlaner"]
+        assert row.show_check.isChecked()
+        parts.obs.apply("1 Offlaner", "test", 5)
+        assert fake.is_enabled("1 Offlaner", "Juego") is True
+        assert fake.is_enabled("Borde", "Juego") is True
+        row.show_check.click()                               # desmarcar
+        _esperar(qapp, win)
+        assert not row.show_check.isChecked()
+        assert parts.storage.load_players()["1 Offlaner"].visible is False
+        assert parts.storage.players_snapshot()["1 Offlaner"].visible is False
+        assert fake.is_enabled("1 Offlaner", "Juego") is False
+        assert fake.is_enabled("Borde", "Juego") is False
+        fake.ops.clear()
+        row.show_check.click()                               # marcar otra vez: vuelve al aire
+        _esperar(qapp, win)
+        assert parts.storage.load_players()["1 Offlaner"].visible is True
+        assert fake.is_enabled("1 Offlaner", "Juego") is True
+        assert fake.is_enabled("Borde", "Juego") is True
+        assert fake.is_enabled("Camara · 1 Offlaner", "1 Offlaner") is True
+        assert ("transform", "Juego", "1 Offlaner",
+                {"positionX": 456.0, "positionY": 1819.0, "scaleX": 0.18, "scaleY": 0.18}) in fake.ops
+    finally:
+        win.close()
+
+
+def test_mostrar_no_llama_a_obs_desde_el_hilo_de_la_ventana(qapp, appdata, monkeypatch):
+    import threading
+    fake = _fake()
+    parts, win = _armar(fake)
+    try:
+        _conectar(qapp, win)
+        hilos = []
+        original = parts.obs.refresh_player_visibility
+        monkeypatch.setattr(parts.obs, "refresh_player_visibility",
+                            lambda s: (hilos.append(threading.current_thread()), original(s))[1])
+        win.players_page.rows["1 Mid laner"].show_check.click()
+        _esperar(qapp, win)
+        assert hilos and all(h is not threading.main_thread() for h in hilos)
+    finally:
+        win.close()
+
+
+def test_mostrar_con_guardado_fallido_vuelve_a_marcarse(qapp, appdata, monkeypatch):
+    fake = _fake()
+    parts, win = _armar(fake)
+    try:
+        _conectar(qapp, win)
+        parts.obs.apply("1 Mid laner", "test")
+        row = win.players_page.rows["1 Mid laner"]
+        llamadas = []
+        monkeypatch.setattr(parts.obs, "refresh_player_visibility", llamadas.append)
+
+        def falla(d):
+            raise PermissionError(13, "archivo en uso")
+        monkeypatch.setattr(parts.storage, "save_players", falla)
+        row.show_check.click()
+        _esperar(qapp, win)
+        assert row.show_check.isChecked()                    # vuelve a lo guardado
+        assert parts.storage.players_snapshot()["1 Mid laner"].visible is True
+        assert any("no pude guardar los jugadores" in line for line in win.event_lines())
+        assert llamadas == []                                # no se mandó nada a OBS
+        assert fake.is_enabled("1 Mid laner", "Juego") is True
+    finally:
+        win.close()
+
+
+def test_mostrar_sin_obs_guarda_y_avisa_que_se_aplica_al_reconectar(qapp, appdata):
+    fake = _fake()
+    fake.connect_error = ConnectionRefusedError("OBS cerrado")
+    parts, win = _armar(fake)
+    try:
+        _conectar(qapp, win)
+        assert not parts.obs.connected
+        win.players_page.rows["1 Mid laner"].show_check.click()
+        _esperar(qapp, win)
+        assert parts.storage.load_players()["1 Mid laner"].visible is False
+        assert any("OBS no está conectado" in line and "1 Mid laner" in line and "al reconectar" in line
+                   for line in win.event_lines())
+    finally:
+        win.close()
+
+
+def test_barra_dice_oculto_si_el_elegido_no_se_muestra(qapp, appdata):
+    from overpower_cams.gui.status_bar import on_air_text
+    parts, win = _armar(_fake())
+    try:
+        st = replace(parts.engine.status(), camera="1 Mid laner", abilities={"1 Mid laner": 5})
+        players = {"1 Mid laner": PlayerConfig("SumaiL", visible=False)}
+        texto = on_air_text(st, players)
+        assert texto.startswith("Al aire: oculto") and "1 Mid laner" in texto
+        assert "habilidades" not in texto
+        win.players_page.rows["1 Mid laner"].show_check.click()
+        _esperar(qapp, win)
+        win.tick()
+        win.status_bar_widget.set_on_air("", False)
+        win._refresh_live(st)
+        assert win.on_air_label.text().startswith("Al aire: oculto")
+        assert win.status_bar_widget.on_air.property("live") is False
+        win.players_page.refresh_live(st)
+        assert win.players_page.rows["1 Mid laner"].property("onair") is False
+    finally:
+        win.close()
+
+
 def test_revision_de_fuentes_se_actualiza_al_editar_un_jugador(qapp, appdata):
     fake = _fake()
     parts, win = _armar(fake)

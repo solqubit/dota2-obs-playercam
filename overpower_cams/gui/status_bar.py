@@ -7,7 +7,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from ..i18n import tr
-from ..players import PlayerConfig, TeamsConfig
+from ..players import PlayerConfig, TeamsConfig, is_visible
 from .widgets import ElidedLabel, Segmented, field_label, repolish
 
 
@@ -40,9 +40,15 @@ def input_note(mode: str) -> str:
     return tr("Con «Ocultar todo» la app no escucha el teclado ni el mouse.")
 
 
+def on_air_live(st, players: dict[str, PlayerConfig]) -> bool:
+    """Si hay un jugador al aire (elegido y con «Mostrar» marcado)."""
+    return bool(st.camera) and is_visible(players.get(st.camera))
+
+
 def on_air_text(st, players: dict[str, PlayerConfig]) -> str:
     """'Al aire: jugador · escena · héroe · N habilidades' (o que no hay nada al aire). Sin datos
-    de habilidades se omite la cantidad."""
+    de habilidades se omite la cantidad. Si el elegido tiene «Mostrar» desmarcado:
+    'Al aire: oculto · jugador · escena'."""
     if not st.camera:
         if st.mode == "hidden":
             return tr("Al aire: nada (Ocultar todo)")
@@ -50,6 +56,8 @@ def on_air_text(st, players: dict[str, PlayerConfig]) -> str:
     p = players.get(st.camera)
     parts = [p.name.strip()] if p is not None and p.name.strip() else []
     parts.append(st.camera)
+    if not is_visible(p):
+        return tr("Al aire: oculto · {details}", details=" · ".join(parts))
     hero = hero_display(st.hero)
     if hero:
         parts.append(hero)

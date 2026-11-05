@@ -53,6 +53,7 @@ app **fixes it in one click** (always asking first) or tells you exactly what to
 | GSI file | Creates Dota's Game State Integration file (and its folder, if missing) or fixes it |
 | Data from Dota | Confirms data is arriving; if not, tells you how to enable it |
 | Spectator hotkeys | Assigns keys 1–0 to the 10 players and resolves clashes with other actions, only with Dota closed and after making a backup |
+| Assisted camera (optional) | Puts Dota's `dota_toggle_assisted_camera_operator` on a key you press, saved in `game\dota\cfg\autoexec.cfg` (with a backup); warns if a Dota hotkey already uses that key |
 | OBS & WebSocket | Checks the connection and password, and guides you if it isn't enabled |
 | OBS scene | Checks `Juego`, the 10 player scenes and their 4 sources each, the Move Transition plugin and the 3 H filters; creates missing player scenes by copying `1 Hard carry` |
 | Player sources | Warns when a player's selected Camera/Photo source has no URL; updates this check after editing without scanning OBS again |
@@ -62,6 +63,18 @@ app **fixes it in one click** (always asking first) or tells you exactly what to
 Hotkeys and portrait clicks work from the first use. If you change your Dota hotkeys while
 the app is open, it reloads them on its own. If OBS closes mid-broadcast, the app
 reconnects when it comes back.
+
+### Assisted camera
+
+**Checks → Assisted camera → Set up…** asks you to press a key and writes
+`bind "<KEY>" "dota_toggle_assisted_camera_operator"` to Dota's `autoexec.cfg`. Dota runs that
+file by itself at startup, so **no launch option is needed**; the key works from the next
+time you start Dota (to use it right away, type the same line once in Dota's console).
+Dota's own hotkeys (Settings → Hotkeys, player *and* spectator ones) **win over a console
+bind**: if the key is also e.g. "Select courier", the assisted camera never toggles. The
+dialog only lets you save a key that nothing in Dota uses, and the check turns yellow if
+you later assign that key to a Dota hotkey. The app reads the hotkeys of the Steam account
+that is logged in (or the most recent one), not just any account on the PC.
 
 ### How it talks to Dota and OBS
 
@@ -208,6 +221,7 @@ The **Players** page lists both teams with their 5 positions. For each player:
 | Name | Text of `Nombre · <scene>` |
 | Camera / Photo link | URL of `Camara · <scene>` / `Foto · <scene>` |
 | Camera / Photo | What the scene shows. If the chosen URL is empty, both media sources stay hidden; the scene transform still applies |
+| Show | Checked by default. Unchecked: when that player is selected nothing goes on air (no scene, no border); checking it again while they are selected shows them at once. The Player sources check ignores hidden players |
 | Abilities | The player's current number of abilities, from GSI |
 
 Changes are saved and applied in OBS immediately; if that player is on air, the change shows

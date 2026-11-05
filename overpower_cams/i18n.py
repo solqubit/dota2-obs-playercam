@@ -122,6 +122,8 @@ EN: dict[str, str] = {
         "These filters aren't Move Transition's \"Move Source\" filters: {names}",
     "Fuentes de los jugadores": "Player sources",
     "Los 10 jugadores tienen URL en la fuente elegida": "All 10 players have a URL in their chosen source",
+    "Los jugadores visibles tienen URL en la fuente elegida ({n} ocultos)":
+        "Visible players have a URL in their chosen source ({n} hidden)",
     "{scene}: {source} sin URL": "{scene}: {source} has no URL",
     "Sin URL en la fuente elegida, ese jugador sale al aire sin cámara ni foto.\n"
     "1. Abre la página Jugadores.\n"
@@ -287,6 +289,10 @@ EN: dict[str, str] = {
 
     # ---- engine (eventos y motivos) ----
     "oculto": "hidden",
+    "oculto ({scene}, sin «Mostrar»)": "hidden ({scene}, “Show” unchecked)",
+    "«Mostrar» cambiado": "“Show” changed",
+    "Probar: ningún jugador tiene «Mostrar» marcado; no se movió nada":
+        "Test: no player has “Show” checked; nothing was moved",
     "sin partida": "no match",
     "fuera de juego ({state})": "out of game ({state})",
     "fuera de juego ({state}) → oculto": "out of game ({state}) → hidden",
@@ -374,6 +380,7 @@ EN: dict[str, str] = {
     "hace {n} s": "{n} s ago",
     "hace {n} min": "{n} min ago",
     "Al aire: {details}": "On air: {details}",
+    "Al aire: oculto · {details}": "On air: hidden · {details}",
     "Al aire: nada (Ocultar todo)": "On air: nothing (Hide all)",
     "Al aire: ninguna cámara": "On air: no camera",
     "{n} habilidades": "{n} abilities",
@@ -418,6 +425,8 @@ EN: dict[str, str] = {
     "URL de foto": "Photo URL",
     "Usar": "Use",
     "Habilidades": "Abilities",
+    "Desmarcado: al elegir a este jugador no sale nada al aire":
+        "Unchecked: selecting this player puts nothing on air",
     "Cámara": "Camera",
     "Foto": "Photo",
     "no pude guardar los jugadores: {error}": "couldn't save the players: {error}",
@@ -548,4 +557,105 @@ EN: dict[str, str] = {
     "Retratos: {n}/10 aprendidos": "Portraits: {n}/10 learned",
     "Retratos olvidados. Se vuelven a aprender al hacerles click.":
         "Portraits forgotten. They're relearned when you click them.",
+
+    # ---- cámara asistida (autoexec.cfg) y nombres de acciones de Dota ----
+    "Cámara asistida": "Assisted camera",
+    "No configurada (opcional)": "Not set up (optional)",
+    "Configurar…": "Set up…",
+    "Cambiar…": "Change…",
+    "{key} activa la cámara asistida": "{key} toggles the assisted camera",
+    "{key} también la usa «{actions}» en Dota; Dota gana y la cámara asistida no se activa":
+        "{key} is also used by «{actions}» in Dota; Dota wins and the assisted camera does not toggle",
+    "{command} (tecla propia de Dota)": "{command} (Dota built-in key)",
+    "«{command}» en autoexec.cfg": "«{command}» in autoexec.cfg",
+    "La cámara asistida (comando de consola dota_toggle_assisted_camera_operator) se activa con "
+    "una tecla. La app la guarda en autoexec.cfg, que Dota ejecuta solo al arrancar: no hace falta "
+    "ninguna opción de lanzamiento. Los atajos de Dota le ganan a esa tecla, así que tiene que estar "
+    "libre en Ajustes → Teclas rápidas.":
+        "The assisted camera (console command dota_toggle_assisted_camera_operator) is toggled "
+        "with a key. The app saves it in autoexec.cfg, which Dota runs by itself at startup: no "
+        "launch option is needed. Dota's own hotkeys win over that key, so it must be free in "
+        "Settings → Hotkeys.",
+    "Elige una tecla primero": "Choose a key first",
+    "{key} ya la usa «{actions}» en Dota: elige otra tecla o cámbiala en Dota (Ajustes → Teclas rápidas)":
+        "{key} is already used by «{actions}» in Dota: choose another key or change it in Dota "
+        "(Settings → Hotkeys)",
+    "No pude escribir autoexec.cfg: {error}": "Could not write autoexec.cfg: {error}",
+    "No pude leer autoexec.cfg: {error}": "Could not read autoexec.cfg: {error}",
+    "Listo: {key} activa la cámara asistida desde la próxima vez que abras Dota (guardado en "
+    "{path}). Para usarla ahora, abre la consola de Dota y escribe una vez:\n\n{line}":
+        "Done: {key} toggles the assisted camera from the next time you start Dota (saved in "
+        "{path}). To use it right now, open Dota's console and type this once:\n\n{line}",
+    "La cámara asistida no tenía tecla; no cambié nada":
+        "The assisted camera had no key; nothing was changed",
+    "Listo: quité la tecla de la cámara asistida de autoexec.cfg. Dota la sigue usando hasta que lo "
+    "cierres; para quitarla ya, escribe en la consola: {line}":
+        "Done: removed the assisted camera key from autoexec.cfg. Dota keeps using it until you "
+        "close it; to remove it right now, type in the console: {line}",
+    "No encontré Steam, así que tampoco el archivo de teclas de Dota. Las teclas rápidas no se van "
+    "a poder usar; los clicks en retratos y GSI sí.":
+        "Steam was not found, so neither was Dota's hotkey file. Hotkeys won't work; portrait "
+        "clicks and GSI will.",
+    "Instala Steam y abre Dota al menos una vez con tu cuenta; luego pulsa «Revisar todo de nuevo».":
+        "Install Steam and start Dota at least once with your account; then press «Check everything "
+        "again».",
+    "Cámara asistida en {key} (autoexec.cfg)": "Assisted camera on {key} (autoexec.cfg)",
+    "Cámara asistida: tecla quitada (autoexec.cfg)": "Assisted camera: key removed (autoexec.cfg)",
+    "No se pudo cambiar": "Could not change it",
+    "Error al cambiar": "Error while changing",
+    "No se pudo leer": "Could not read",
+    "Pulsa la tecla que quieres usar para la cámara asistida":
+        "Press the key you want to use for the assisted camera",
+    "Esc cancela. Los atajos de Dota le ganan a esta tecla: tiene que estar libre en Dota "
+    "(Ajustes → Teclas rápidas).":
+        "Esc cancels. Dota's hotkeys win over this key: it must be free in Dota (Settings → Hotkeys).",
+    "Quitar": "Remove",
+    "Cancelar": "Cancel",
+    "Tecla actual: {key}. Pulsa otra para cambiarla.": "Current key: {key}. Press another one to change it.",
+    "Esperando una tecla…": "Waiting for a key…",
+    "{key} ya es la tecla de la cámara asistida": "{key} is already the assisted camera key",
+    "{key} ya la usa «{actions}» en Dota; Dota gana. Elige otra tecla o cámbiala en Dota.":
+        "{key} is already used by «{actions}» in Dota; Dota wins. Choose another key or change it in Dota.",
+    "{key} está libre: nada de Dota la usa": "{key} is free: nothing in Dota uses it",
+    "Shift, Ctrl o Alt solos no sirven: pulsa otra tecla": "Shift, Ctrl or Alt alone won't do: press another key",
+    "Dota no conoce esa tecla: prueba con otra": "Dota does not know that key: try another one",
+    "Cámara: jugador {n}": "Camera: player {n}",
+    "Seleccionar mensajero": "Select courier",
+    "Mensajero: entregar objetos": "Courier: deliver items",
+    "Seleccionar héroe": "Select hero",
+    "Seleccionar todas las unidades": "Select all units",
+    "Marcador": "Scoreboard",
+    "Pausa": "Pause",
+    "Consola": "Console",
+    "Abrir la tienda": "Open the shop",
+    "Compra rápida": "Quick buy",
+    "Compra fija": "Sticky buy",
+    "Captura de pantalla": "Screenshot",
+    "Chat de equipo": "Team chat",
+    "Chat general": "All chat",
+    "Chat de espectadores": "Spectator chat",
+    "Glifo": "Glyph",
+    "Arrastrar la cámara": "Camera grip",
+    "Cámara arriba": "Camera up",
+    "Cámara abajo": "Camera down",
+    "Cámara a la izquierda": "Camera left",
+    "Cámara a la derecha": "Camera right",
+    "Seleccionar héroe (espectador)": "Select hero (spectator)",
+    "Niebla: ver ambos equipos": "Fog: both teams",
+    "Niebla: ver Radiant": "Fog: Radiant",
+    "Niebla: ver Dire": "Fog: Dire",
+    "Gráfico de objetos": "Items graph",
+    "Gráfico de oro": "Gold graph",
+    "Gráfico de experiencia": "XP graph",
+    "Gráfico de probabilidad de victoria": "Win chance graph",
+    "Menú de comentarista": "Broadcaster menu",
+    "Repetición: más rápido": "Replay: faster",
+    "Repetición: más lento": "Replay: slower",
+    "Vista de entrenador": "Coach view",
+    "Tu autoexec.cfg ya tiene la cámara asistida dentro de un bind con otros comandos; no lo toco. "
+    "Cámbialo a mano en {path}.":
+        "Your autoexec.cfg already has the assisted camera inside a bind with other commands; I "
+        "won't touch it. Change it by hand in {path}.",
+    "Pulsa la tecla sola, sin modificadores (Shift, Ctrl, Alt)":
+        "Press the key alone, without modifiers (Shift, Ctrl, Alt)",
 }

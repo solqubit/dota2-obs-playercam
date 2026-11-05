@@ -7,19 +7,18 @@ con el texto de la excepción y las demás se siguen ejecutando.
 """
 from __future__ import annotations
 
-import os
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import config, gsi_cfg, paths
-from .dota_keys import fix_keys_text, link_enabled, missing_slots, parse_player_keys
+from . import autoexec, config, gsi_cfg, paths
+from .dota_keys import (action_label, fix_keys_text, key_conflicts, link_enabled, missing_slots,
+                        normalize_key, parse_player_keys, read_default_binds, read_key_uses)
 from .i18n import tr
 from .obs_link import BORDE, ObsLink, SceneReport
-from .players import PlayerConfig, effective_use
+from .players import PlayerConfig, effective_use, is_visible
 from .portraits import PortraitModel
 from .scene_builder import SceneBuildError
-from .storage import Settings, Storage
+from .storage import Settings, Storage, atomic_write_bytes
 
 DOTA_EXE = "dota2.exe"
 MASK_ASSET = "Mascara camara.png"        # máscara de Camara/Foto, en assets/
@@ -81,6 +80,7 @@ def check_title(cid: str) -> str:
         "gsi_cfg": tr("Archivo GSI"),
         "gsi_data": tr("Datos de Dota llegando"),
         "keys": tr("Teclas de espectador"),
+        "assisted_camera": tr("Cámara asistida"),
         "obs": tr("OBS y WebSocket"),
         "scene": tr("Escena de OBS"),
         "player_scenes": tr("Escenas de jugador"),
@@ -215,6 +215,13 @@ def _read_keys_text(path: Path) -> str:
 
 
 def _check_keys(ctx: Context, **_) -> CheckResult:
+    if ctx.steam is None and (ctx.keys_file is None or not Path(ctx.keys_file).is_file()):
+        return _res("keys", "warn",
+                    tr("No encontré Steam, así que tampoco el archivo de teclas de Dota. "
+                       "Las teclas rápidas no se van a poder usar; los clicks en retratos y GSI sí."),
+                    None,
+                    tr("Instala Steam y abre Dota al menos una vez con tu cuenta; luego pulsa "
+                       "«Revisar todo de nuevo»."))
     if ctx.keys_file is None or not Path(ctx.keys_file).is_file():
         return _res("keys", "warn",
                     tr("No encontré el archivo de teclas de Dota (dotakeys_personal.lst). "
@@ -239,6 +246,56 @@ def _check_keys(ctx: Context, **_) -> CheckResult:
                     tr("Arreglar"),
                     tr("«Arreglar» (con Dota cerrado) desactiva esa opción, con copia de seguridad."))
     return _res("keys", "ok", tr("Los 10 jugadores tienen su tecla de espectador"))
+
+
+def _instr_assisted() -> str:
+    return tr("La cámara asistida (comando de consola dota_toggle_assisted_camera_operator) se "
+              "activa con una tecla. La app la guarda en autoexec.cfg, que Dota ejecuta solo al "
+              "arrancar: no hace falta ninguna opción de lanzamiento. Los atajos de Dota le ganan "
+              "a esa tecla, así que tiene que estar libre en Ajustes → Teclas rápidas.")
+
+
+def assisted_key(ctx: Context) -> str | None:
+    """Tecla de la cámara asistida en el autoexec.cfg (None si no hay Dota o no está puesta)."""
+    if not paths.is_dota_dir(ctx.dota):
+        return None
+    return autoexec.read_assisted_key(ctx.dota)
+
+
+def assisted_key_uses(ctx: Context) -> list[tuple[str, str]]:
+    """(nombre legible, tecla) de todo lo que ya usa una tecla en Dota: los atajos de
+    dotakeys_personal.lst (todas las secciones), las teclas propias de Dota
+    (user_keys_default.vcfg) y los otros `bind` del autoexec.cfg. Solo lee."""
+    out = [(action_label(a), k) for a, k in read_key_uses(ctx.keys_file)]
+    if paths.is_dota_dir(ctx.dota):
+        out += [(tr("{command} (tecla propia de Dota)", command=cmd), k)
+                for cmd, k in read_default_binds(ctx.dota)]
+        out += [(tr("«{command}» en autoexec.cfg", command=cmd), k)
+                for k, cmd in autoexec.foreign_binds(autoexec.read_text(ctx.dota))]
+    return out
+
+
+def assisted_conflicts(key: str, uses) -> list[str]:
+    """Nombres de lo que ya usa `key` (de `assisted_key_uses`)."""
+    return key_conflicts(key, uses, label=lambda name: name)
+
+
+def _check_assisted_camera(ctx: Context, **_) -> CheckResult:
+    if not paths.is_dota_dir(ctx.dota):
+        return _res("assisted_camera", "info", tr("No se puede revisar sin la carpeta de Dota"))
+    key = assisted_key(ctx)
+    if key is None:
+        return _res("assisted_camera", "info", tr("No configurada (opcional)"), tr("Configurar…"),
+                    _instr_assisted())
+    shown = normalize_key(key)
+    usan = assisted_conflicts(key, assisted_key_uses(ctx))
+    if usan:
+        return _res("assisted_camera", "warn",
+                    tr("{key} también la usa «{actions}» en Dota; Dota gana y la cámara asistida "
+                       "no se activa", key=shown, actions="», «".join(usan)),
+                    tr("Cambiar…"), _instr_assisted())
+    return _res("assisted_camera", "ok", tr("{key} activa la cámara asistida", key=shown),
+                tr("Cambiar…"), _instr_assisted())
 
 
 def _check_obs(ctx: Context, scan: _Scan, **_) -> CheckResult:
@@ -323,16 +380,24 @@ def _check_player_sources(ctx: Context, **_) -> CheckResult:
 
 def player_sources_result(storage: Storage) -> CheckResult:
     """Jugadores cuya fuente elegida (Cámara o Foto) no tiene URL: al aire no se ve ninguna de las
-    dos. Usa los jugadores en memoria (no abre players.json) y no habla con OBS, así la ventana la
-    recalcula al editar un jugador sin volver a correr todas las revisiones."""
+    dos. Los jugadores con «Mostrar» desmarcado no salen al aire: no cuentan. Usa los jugadores en
+    memoria (no abre players.json) y no habla con OBS, así la ventana la recalcula al editar un
+    jugador sin volver a correr todas las revisiones."""
     players = storage.players_snapshot()
     sin_url = []
+    ocultos = 0
     for scene in config.PLAYER_SCENES:
         p = players.get(scene) or PlayerConfig()
+        if not is_visible(p):
+            ocultos += 1
+            continue
         if effective_use(p) is None:
             fuente = tr("Foto") if p.use == "photo" else tr("Cámara")
             sin_url.append(tr("{scene}: {source} sin URL", scene=scene, source=fuente))
     if not sin_url:
+        if ocultos:
+            return _res("player_sources", "ok",
+                        tr("Los jugadores visibles tienen URL en la fuente elegida ({n} ocultos)", n=ocultos))
         return _res("player_sources", "ok", tr("Los 10 jugadores tienen URL en la fuente elegida"))
     return _res("player_sources", "warn", _short_list(sin_url), None,
                 tr("Sin URL en la fuente elegida, ese jugador sale al aire sin cámara ni foto.\n"
@@ -451,7 +516,8 @@ def run_checks(ctx: Context, *, is_running=paths.is_running) -> list[CheckResult
         scan = _Scan("lost", error=f"{type(e).__name__}: {e}")
     plan = [
         ("dota", _check_dota), ("gsi_cfg", _check_gsi_cfg), ("gsi_data", _check_gsi_data),
-        ("keys", _check_keys), ("obs", _check_obs), ("scene", _check_scene),
+        ("keys", _check_keys), ("assisted_camera", _check_assisted_camera),
+        ("obs", _check_obs), ("scene", _check_scene),
         ("player_scenes", _check_player_scenes), ("player_sources", _check_player_sources),
         ("move_filters", _check_move_filters),
         ("scene_images", _check_scene_images), ("portraits", _check_portraits),
@@ -468,11 +534,7 @@ def run_checks(ctx: Context, *, is_running=paths.is_running) -> list[CheckResult
 # ---------- arreglos ----------
 
 def _fix_gsi_cfg(ctx: Context, is_running) -> str:
-    if ctx.dota is None:
-        raise FixRefused(tr("Primero hay que elegir la carpeta de Dota"))
-    if not paths.is_dota_dir(ctx.dota):
-        raise FixRefused(tr("Esa carpeta no parece ser Dota 2 (falta game\\dota): "
-                            "elige la carpeta correcta con «Buscar…»"))
+    _need_dota(ctx)
     destino = paths.gsi_cfg_path(ctx.dota)
     try:
         if destino.is_file():   # solo nuestro archivo: se guarda copia por si tenía algo propio
@@ -486,18 +548,19 @@ def _fix_gsi_cfg(ctx: Context, is_running) -> str:
     return msg
 
 
-def _atomic_write(path: Path, data: bytes) -> None:
-    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")
+def _reserved_keys(ctx: Context) -> set[str]:
+    """Teclas a las que el arreglo de teclas no puede mover nada: la de la cámara asistida y
+    las que Dota trae asignadas a comandos (user_keys_default.vcfg)."""
+    if not paths.is_dota_dir(ctx.dota):
+        return set()
+    out = {k for _cmd, k in read_default_binds(ctx.dota)}
     try:
-        with os.fdopen(fd, "wb") as f:
-            f.write(data)
-        os.replace(tmp, path)
-    except BaseException:
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
-        raise
+        key = autoexec.read_assisted_key(ctx.dota)
+    except OSError:
+        key = None
+    if key:
+        out.add(key)
+    return out
 
 
 def _fix_keys(ctx: Context, is_running) -> str:
@@ -508,7 +571,7 @@ def _fix_keys(ctx: Context, is_running) -> str:
     keys_file = Path(ctx.keys_file)
     try:
         original = _read_keys_text(keys_file)
-        nuevo = fix_keys_text(original)
+        nuevo = fix_keys_text(original, reserved=_reserved_keys(ctx))
     except (OSError, ValueError) as e:
         raise FixRefused(tr("No pude arreglar el archivo de teclas: {error}", error=e)) from e
     if nuevo == original:
@@ -517,12 +580,69 @@ def _fix_keys(ctx: Context, is_running) -> str:
         raise FixRefused(tr("No pude asignar todas las teclas de espectador; no cambié nada"))
     try:
         copia = ctx.storage.backup(keys_file)
-        _atomic_write(keys_file, nuevo.encode("utf-8", errors="surrogateescape"))
+        atomic_write_bytes(keys_file, nuevo.encode("utf-8", errors="surrogateescape"))
     except OSError as e:
         raise FixRefused(tr("No pude guardar el archivo de teclas: {error}", error=e)) from e
     return tr("Listo: arreglé las teclas de espectador. Copia de seguridad: {backup}. "
               "Si al abrir Steam aparece un conflicto de sincronización (Steam Cloud), "
               "elige la versión local.", backup=copia)
+
+
+def _need_dota(ctx: Context) -> None:
+    if ctx.dota is None:
+        raise FixRefused(tr("Primero hay que elegir la carpeta de Dota"))
+    if not paths.is_dota_dir(ctx.dota):
+        raise FixRefused(tr("Esa carpeta no parece ser Dota 2 (falta game\\dota): "
+                            "elige la carpeta correcta con «Buscar…»"))
+
+
+def _refuse_chained(ctx: Context) -> None:
+    """Un bind encadenado escrito a mano («...operator; otro comando») no se toca."""
+    try:
+        chained = autoexec.has_chained_bind(autoexec.read_text(ctx.dota))
+    except OSError as e:
+        raise FixRefused(tr("No pude leer autoexec.cfg: {error}", error=e)) from e
+    if chained:
+        raise FixRefused(tr("Tu autoexec.cfg ya tiene la cámara asistida dentro de un bind con "
+                            "otros comandos; no lo toco. Cámbialo a mano en {path}.",
+                            path=paths.autoexec_path(ctx.dota)))
+
+
+def set_assisted_camera(ctx: Context, key: str, *, is_running=paths.is_running) -> str:
+    """Pone la tecla de la cámara asistida en autoexec.cfg. Se puede con Dota abierto (lo lee
+    solo al arrancar). Se niega si la tecla está vacía o ya la usa algo de Dota."""
+    _need_dota(ctx)
+    key = normalize_key(key)
+    if not key:
+        raise FixRefused(tr("Elige una tecla primero"))
+    _refuse_chained(ctx)
+    usan = assisted_conflicts(key, assisted_key_uses(ctx))
+    if usan:
+        raise FixRefused(tr("{key} ya la usa «{actions}» en Dota: elige otra tecla o cámbiala en "
+                            "Dota (Ajustes → Teclas rápidas)", key=key, actions="», «".join(usan)))
+    try:
+        ruta = autoexec.write_assisted_key(ctx.dota, key, ctx.storage)
+    except OSError as e:
+        raise FixRefused(tr("No pude escribir autoexec.cfg: {error}", error=e)) from e
+    return tr("Listo: {key} activa la cámara asistida desde la próxima vez que abras Dota "
+              "(guardado en {path}). Para usarla ahora, abre la consola de Dota y escribe una vez:"
+              "\n\n{line}", key=key, path=ruta, line=autoexec.console_line(key))
+
+
+def remove_assisted_camera(ctx: Context, *, is_running=paths.is_running) -> str:
+    """Quita la tecla de la cámara asistida del autoexec.cfg."""
+    _need_dota(ctx)
+    _refuse_chained(ctx)
+    key = autoexec.read_assisted_key(ctx.dota)
+    try:
+        quitada = autoexec.remove_assisted_key(ctx.dota, ctx.storage)
+    except OSError as e:
+        raise FixRefused(tr("No pude escribir autoexec.cfg: {error}", error=e)) from e
+    if not quitada:
+        raise FixRefused(tr("La cámara asistida no tenía tecla; no cambié nada"))
+    return tr("Listo: quité la tecla de la cámara asistida de autoexec.cfg. Dota la sigue usando "
+              "hasta que lo cierres; para quitarla ya, escribe en la consola: {line}",
+              line=f'unbind "{normalize_key(key or "")}"')
 
 
 def _fix_scene(ctx: Context) -> str:

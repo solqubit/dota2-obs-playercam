@@ -91,6 +91,13 @@ también envíe las habilidades.
    Imágenes (borde, máscara de la cámara y fondo del nombre): vienen con la
    app, en DotaPlayerCams\_internal\assets (Borde.png, Mascara camara.png y
    Marco sin camara.png). Pulsa "Arreglar" y la app las pone en OBS.
+   Opcional - "Cámara asistida": pulsa "Configurar..." y luego una tecla. La
+   app la guarda en el autoexec.cfg de Dota, que Dota ejecuta solo al
+   arrancar (no hace falta opción de lanzamiento); funciona desde la próxima
+   vez que abras Dota, o ya mismo si escribes una vez en la consola de Dota
+   la línea que te muestra. Los atajos de Dota le ganan a esa tecla: tiene
+   que estar libre en Dota (Ajustes -> Teclas rápidas); la app te dice qué
+   acción de Dota la usa.
 
 8) COMPLETAR LOS JUGADORES (página "Jugadores")
    Para cada uno de los 10 jugadores: nombre, link de cámara (VDO.Ninja),
@@ -98,6 +105,8 @@ también envíe las habilidades.
    al momento (nombre, links y Cámara/Foto); si ese jugador está al aire, lo
    ves enseguida. Si la URL elegida está vacía, cámara y foto quedan ocultas;
    la posición y escala de la escena se siguen aplicando.
+   Desmarca "Mostrar" en un jugador para ocultarlo del todo: al elegirlo no
+   sale nada al aire (ni escena ni borde).
 
 9) EN LA PARTIDA (barra de arriba de la ventana)
    - "Radiant es": elige qué equipo es Radiant según el sorteo.

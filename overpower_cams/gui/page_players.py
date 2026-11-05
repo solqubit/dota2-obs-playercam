@@ -1,9 +1,9 @@
 """Página Jugadores (boceto D v2): por equipo, el nombre del equipo (con su bando actual) y una
-tabla con las 5 escenas de jugador: rol, nombre, link de cámara, link de foto, Cámara/Foto y
-habilidades actuales. La fila al aire se resalta en verde.
+tabla con las 5 escenas de jugador: rol, nombre, link de cámara, link de foto, Cámara/Foto,
+«Mostrar» y habilidades actuales. La fila al aire se resalta en verde.
 
 Cada edición se guarda al momento (`players.json`) y se manda a OBS en otro hilo: los textos al
-perder el foco o con Enter, el selector Cámara/Foto al hacer click. Los envíos a OBS van de a uno
+perder el foco o con Enter, el selector Cámara/Foto y la casilla «Mostrar» al hacer click. Los envíos a OBS van de a uno
 y en orden (una cola sobre `run_bg`). Si OBS no está conectado se guarda igual, se avisa en
 Eventos y `push_all()` (la ventana lo llama al conectar) lo manda después."""
 from __future__ import annotations
@@ -16,8 +16,8 @@ from PySide6.QtWidgets import (QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEd
 
 from .. import config
 from ..i18n import tr
-from ..players import PlayerConfig, TeamsConfig
-from .widgets import Segmented, card, page_header, repolish, status_colors
+from ..players import PlayerConfig, TeamsConfig, is_visible
+from .widgets import CheckBox, Segmented, card, page_header, repolish, status_colors
 
 FIELDS = ("name", "camera", "photo")          # lo que se manda a OBS por escena
 URL_ATTR = {"camera": "camera_url", "photo": "photo_url"}
@@ -48,6 +48,9 @@ class PlayerRow(QFrame):
         self.photo_edit = QLineEdit()
         self.photo_edit.setPlaceholderText(URL_HINT)
         self.use_selector: Segmented | None = None    # lo pone la página (necesita el callback)
+        self.show_check = CheckBox(tr("Mostrar"),
+                                   tr("Desmarcado: al elegir a este jugador no sale nada al aire"))
+        self.show_check.setChecked(True)
         self.abilities_label = QLabel("—")
         self.abilities_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
@@ -134,13 +137,13 @@ class PlayersPage(QWidget):
         grid.setContentsMargins(0, 0, 0, 0)
         grid.setHorizontalSpacing(10)
         grid.setVerticalSpacing(0)
-        last = 7                                   # columnas 0 y 7: margen dentro del fondo
+        last = 8                                   # columnas 0 y 8: margen dentro del fondo
         grid.setColumnMinimumWidth(0, 0)
         grid.setColumnMinimumWidth(last, 0)
         for col, stretch in ((2, 2), (3, 3), (4, 3)):
             grid.setColumnStretch(col, stretch)
         heads = [tr("Rol"), tr("Nombre"), tr("URL de cámara"), tr("URL de foto"),
-                 tr("Usar"), tr("Habilidades")]
+                 tr("Usar"), tr("Mostrar"), tr("Habilidades")]
         head_bg = QFrame()
         head_bg.setObjectName("tableRow")
         grid.addWidget(head_bg, 0, 0, 1, last + 1)
@@ -157,9 +160,13 @@ class PlayersPage(QWidget):
                                          lambda use, s=scene: self._use_picked(s, use))
             grid.addWidget(row, r, 0, 1, last + 1)     # fondo primero: los campos quedan encima
             cells = (row.role_label, row.name_edit, row.camera_edit, row.photo_edit,
-                     row.use_selector, row.abilities_label)
+                     row.use_selector, row.show_check, row.abilities_label)
             for c, w in enumerate(cells, start=1):
-                grid.addWidget(w, r, c, Qt.AlignmentFlag.AlignVCenter)
+                align = Qt.AlignmentFlag.AlignVCenter
+                if w is row.show_check:
+                    align |= Qt.AlignmentFlag.AlignHCenter
+                grid.addWidget(w, r, c, align)
+            row.show_check.clicked.connect(lambda checked, s=scene: self._show_toggled(s, checked))
             row.lower()
             grid.setRowMinimumHeight(r, ROW_HEIGHT)
             for field in FIELDS:
@@ -181,6 +188,8 @@ class PlayersPage(QWidget):
             for field in FIELDS:
                 self._set_text(row.edit(field), getattr(p, _attr(field)))
             row.use_selector.set_value(p.use if p.use in ("camera", "photo") else "camera")
+            if row.show_check.isChecked() != is_visible(p):
+                row.show_check.setChecked(is_visible(p))   # setChecked no emite clicked
 
     @staticmethod
     def _set_text(edit: QLineEdit, value: str) -> None:
@@ -244,6 +253,25 @@ class PlayersPage(QWidget):
         obs = self._get_obs()
 
         self._enqueue(lambda: obs.refresh_player_mode(scene), None)   # solo si está al aire
+
+    def _show_toggled(self, scene: str, checked: bool) -> None:
+        saved = is_visible(self._players.get(scene))
+        if checked == saved:
+            return
+        if not self._save_player(scene, visible=checked):
+            self.rows[scene].show_check.setChecked(saved)
+            return
+        obs = self._get_obs()
+
+        def work():
+            obs.refresh_player_visibility(scene)      # solo hace algo si está elegido
+            return obs.connected
+
+        def done(connected, exc):
+            if exc is None and not connected:
+                self._post(tr("OBS no está conectado: el cambio de {scene} se guardó y se aplica "
+                              "al reconectar", scene=scene))
+        self._enqueue(work, done)
 
     # ------------------------------------------------------------------ OBS
     def _push(self, scene: str, field: str, value: str, *, warn: bool) -> None:
@@ -313,7 +341,7 @@ class PlayersPage(QWidget):
             text = str(n) if n else "—"
             if row.abilities_label.text() != text:
                 row.abilities_label.setText(text)
-            row.set_on_air(st.camera == scene, green)
+            row.set_on_air(st.camera == scene and is_visible(self._players.get(scene)), green)
         self._refresh_sides()
 
     def _refresh_sides(self) -> None:

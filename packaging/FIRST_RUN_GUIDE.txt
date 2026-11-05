@@ -85,12 +85,20 @@ so the GSI file is updated to also send abilities.
    Images (border, camera mask and name background): they come with the app
    in DotaPlayerCams\_internal\assets (Borde.png, Mascara camara.png and
    Marco sin camara.png). Click "Fix" and the app sets them in OBS.
+   Optional - "Assisted camera": click "Set up..." and press a key. The app
+   writes it to Dota's autoexec.cfg, which Dota runs by itself when it
+   starts (no launch option needed); it works from the next Dota start, or
+   right away if you type the line it shows once in Dota's console.
+   Dota hotkeys win over that key: it must be free in Dota (Settings ->
+   Hotkeys); the app tells you which Dota action uses it.
 
 8) FILL IN THE PLAYERS ("Players" page)
    For each of the 10 players: name, camera link (VDO.Ninja), photo link and
    Camera / Photo. Changes are saved and applied in OBS right away (name,
    links and Camera/Photo); if that player is on air, you see it at once.
    If the selected URL is empty, both media sources are hidden; the scene transform still applies.
+   Uncheck "Show" for a player to hide them completely: when selected,
+   nothing goes on air (no scene, no border).
 
 9) DURING THE MATCH (bar at the top of the window)
    - "Radiant is": choose which team is Radiant after the coin toss.

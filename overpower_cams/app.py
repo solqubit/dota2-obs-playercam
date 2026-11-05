@@ -172,9 +172,11 @@ def _show_crash(path: Path | None) -> None:
                          tr("Ocurrió un error inesperado y la app puede no funcionar bien.") + "\n\n" + donde)
 
 
-def handle_crash(exc_type, exc, tb, *, base: Path | None = None, show=_show_crash) -> Path | None:
-    """Anota el error en error.log y avisa con un cuadro, solo la primera vez."""
+def handle_crash(exc_type, exc, tb, *, base: Path | None = None, show=None) -> Path | None:
+    """Anota el error en error.log y avisa con un cuadro (`show`, por defecto `_show_crash`
+    buscado al momento), solo la primera vez."""
     global _crash_shown
+    show = show if show is not None else _show_crash
     path = write_error_log(exc_type, exc, tb, base=base)
     if not _crash_shown:
         _crash_shown = True

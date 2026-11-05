@@ -1,4 +1,6 @@
 """Archivo de configuración GSI de Dota."""
+import os
+
 from overpower_cams.config import GSI_CFG_NAME, GSI_CFG_TEXT
 from overpower_cams.gsi_cfg import cfg_status, write_cfg
 
@@ -25,3 +27,17 @@ def test_write_cfg_crea_carpeta(tmp_path):
     write_cfg(carpeta / GSI_CFG_NAME)
     assert (carpeta / GSI_CFG_NAME).is_file()
     assert cfg_status(carpeta / GSI_CFG_NAME) == "ok"
+
+
+def test_write_cfg_es_atomico_y_no_deja_temporales(tmp_path, monkeypatch):
+    import pytest
+    ruta = tmp_path / GSI_CFG_NAME
+    ruta.write_text("viejo", encoding="utf-8")
+
+    def boom(src, dst):
+        raise PermissionError("en uso")
+    monkeypatch.setattr(os, "replace", boom)
+    with pytest.raises(PermissionError):
+        write_cfg(ruta)
+    assert ruta.read_text(encoding="utf-8") == "viejo"
+    assert [p.name for p in tmp_path.iterdir()] == [GSI_CFG_NAME]

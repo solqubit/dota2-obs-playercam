@@ -35,7 +35,8 @@ from .page_players import PlayersPage
 from .page_scene import ScenePage
 from .page_settings import SettingsPage
 from .sidebar import PAGE_KEYS, Sidebar
-from .status_bar import LiveBar, StatusBar, ago_text, clock_text, on_air_text, team_names
+from .status_bar import (LiveBar, StatusBar, ago_text, clock_text, on_air_live, on_air_text,
+                         team_names)
 from .widgets import app_style, dot_html, page_layout, status_colors
 
 MAX_EVENTS = 50
@@ -335,7 +336,7 @@ class Shell(ChecksMixin, QMainWindow):
 
     def _refresh_live(self, st) -> None:
         self.live_bar.set_values(self._radiant_team, self._mode)
-        self.status_bar_widget.set_on_air(on_air_text(st, self.players), bool(st.camera))
+        self.status_bar_widget.set_on_air(on_air_text(st, self.players), on_air_live(st, self.players))
         page = self.stack.currentWidget()
         refresh = getattr(page, "refresh_live", None)
         if callable(refresh):

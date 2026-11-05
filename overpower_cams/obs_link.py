@@ -4,6 +4,8 @@ Las 10 escenas de jugador son escenas anidadas dentro de la escena principal (`J
 sus fuentes `Camara · X` y `Foto · X`. Esta clase enciende la escena del jugador al aire (ya en la posición
 y escala de su filtro de habilidades, leídas de los filtros Move Source), elige cámara o foto dentro de ella,
 muestra el Borde solo con una escena al aire, apunta los filtros al jugador y se recupera si OBS se reinicia.
+Un jugador con «Mostrar» desmarcado no sale al aire: se recuerda que está elegido (`_requested`) y, si
+se vuelve a marcar, se muestra al momento.
 """
 import threading
 import time
@@ -16,7 +18,7 @@ from obsws_python.error import OBSSDKError, OBSSDKRequestError, OBSSDKTimeoutErr
 from . import config
 from .config import source_name
 from .i18n import tr
-from .players import PlayerConfig, effective_use
+from .players import PlayerConfig, effective_use, is_visible
 
 ITEMS_REFRESH_S = 2.0        # tope de frecuencia al releer la colección cuando falta una escena
 OBS_TIMEOUT_S = 5.0          # tope de espera por conexión/respuesta (nunca bloquear al motor)
@@ -97,6 +99,7 @@ class ObsLink:
         self._warned: set[str] = set()                # escenas ausentes ya avisadas
         self._warned_mode: set[str] = set()           # escenas sin cámara ni foto ya avisadas
         self._last_scene: str | None = None           # escena encendida hoy en OBS
+        self._requested: str | None = None            # última escena pedida y entregada (aunque esté oculta)
         self.connected = False
         self.error: str | None = None
         self.pending_scene: str | None = None   # última escena pedida y NO entregada a OBS
@@ -253,6 +256,7 @@ class ObsLink:
         y relanza la excepción."""
         with self._lock:
             self._last_scene = None
+            self._requested = None
             try:
                 report = self._scan()
                 if not report.main_found:
@@ -357,6 +361,9 @@ class ObsLink:
         except Exception:  # noqa: BLE001 - un proveedor roto no debe tumbar el cambio de escena
             return {}
 
+    def _visible(self, scene: str) -> bool:
+        return is_visible(self._provided_players().get(scene))
+
     def _set_mode(self, scene: str):
         """Dentro de la escena: enciende Camara o Foto según la configuración y apaga la otra."""
         player = self._provided_players().get(scene)
@@ -381,9 +388,10 @@ class ObsLink:
 
     def apply(self, scene: str | None, reason: str, abilities: int = 4) -> None:
         """Pone `scene` al aire (None = ocultar todo): posición del filtro, cámara o foto,
-        escena nueva antes de apagar la anterior, Borde y filtros apuntando al jugador. No lanza
-        nunca y no espera a una reconexión en curso: si no hay conexión, o OBS falla, se marca
-        `connected = False` y se guarda la escena en `pending_scene`."""
+        escena nueva antes de apagar la anterior, Borde y filtros apuntando al jugador. Si el
+        jugador tiene «Mostrar» desmarcado no sale nada al aire (se apaga la anterior y el Borde).
+        No lanza nunca y no espera a una reconexión en curso: si no hay conexión, o OBS falla, se
+        marca `connected = False` y se guarda la escena en `pending_scene`."""
         if not self.connected:           # sin lock: no esperar a una reconexión en curso
             self._remember(scene, abilities)
             return
@@ -392,40 +400,63 @@ class ObsLink:
                 self._remember(scene, abilities)
                 return
             self._last_abilities = abilities
-            old = self._last_scene
-            if scene == old:
-                self._clear_pending()
+            self._requested = scene
+            self._show(scene, reason, abilities)
+
+    def _show(self, requested: str | None, reason: str, abilities: int) -> None:
+        """Lleva OBS a lo pedido (con el lock tomado). Nunca lanza."""
+        scene = requested
+        hidden = scene is not None and not self._visible(scene)
+        if hidden:
+            scene = None                  # elegido pero oculto: no se ve nada
+        old = self._last_scene
+        if scene == old:
+            self._clear_pending()
+            return
+        if scene is not None and scene not in self._scene_ids:
+            if not self._refresh_if_due():   # la conexión se cayó al releer la colección
+                self._remember(requested, abilities)
                 return
-            if scene is not None and scene not in self._scene_ids:
-                if not self._refresh_if_due():   # la conexión se cayó al releer la colección
-                    self._remember(scene, abilities)
+            if scene not in self._scene_ids:
+                # Sin esa escena no hay nada que mostrar: se apaga la anterior y el Borde.
+                if scene not in self._warned:
+                    self._warned.add(scene)
+                    self._emit(tr("{scene} no está en la escena de OBS: se apaga la escena anterior",
+                                  scene=scene))
+                scene = None
+                if old is None:          # ya estaba todo apagado
+                    self._clear_pending()
                     return
-                if scene not in self._scene_ids:
-                    # Sin esa escena no hay nada que mostrar: se apaga la anterior y el Borde.
-                    if scene not in self._warned:
-                        self._warned.add(scene)
-                        self._emit(tr("{scene} no está en la escena de OBS: se apaga la escena anterior",
-                                      scene=scene))
-                    scene = None
-                    if old is None:          # ya estaba todo apagado
-                        self._clear_pending()
-                        return
-            try:
-                self._emit(f"{old or tr('ninguna')} -> {scene or tr('oculto')}  {reason}")
-                if scene is not None:
-                    self._place(scene, clamp_abilities(abilities))
-                    self._set_mode(scene)
-                    self._enable_main(scene, True)
-                if old is not None:
-                    self._enable_main(old, False)
-                self._enable_main(BORDE, scene is not None)
-                if scene is not None:
-                    self._point_filters(scene)
-                self._last_scene = scene
-                self._clear_pending()
-            except Exception as e:  # noqa: BLE001
-                self._remember(scene, abilities)
-                self._fail(e)
+        try:
+            shown = scene or (tr("oculto ({scene}, sin «Mostrar»)", scene=requested) if hidden
+                              else tr("oculto"))
+            self._emit(f"{old or tr('ninguna')} -> {shown}  {reason}")
+            if scene is not None:
+                self._place(scene, clamp_abilities(abilities))
+                self._set_mode(scene)
+                self._enable_main(scene, True)
+            if old is not None:
+                self._enable_main(old, False)
+            self._enable_main(BORDE, scene is not None)
+            if scene is not None:
+                self._point_filters(scene)
+            self._last_scene = scene
+            self._clear_pending()
+        except Exception as e:  # noqa: BLE001
+            self._remember(requested, abilities)
+            self._fail(e)
+
+    def refresh_player_visibility(self, scene: str) -> bool:
+        """Se marcó o desmarcó «Mostrar» de `scene`: si es el jugador elegido, lo muestra (como un
+        `apply`) o lo oculta junto con el Borde. False si no es el elegido, no hay conexión u OBS
+        falló. No lanza nunca ni espera a una reconexión en curso."""
+        if not self.connected or scene != self._requested:   # sin lock: no esperar a la reconexión
+            return False
+        with self._lock:
+            if not self.connected or self._client is None or scene != self._requested:
+                return False
+            self._show(scene, tr("«Mostrar» cambiado"), self._last_abilities)
+            return self.connected
 
     def refresh_player_mode(self, scene: str) -> bool:
         """Si `scene` está al aire, reaplica posición y Cámara/Foto (`apply` no hace nada con la
@@ -494,13 +525,19 @@ class ObsLink:
                 self._fail(e)
 
     def test_filter(self, abilities: int) -> bool:
-        """Botón «Probar»: apunta los filtros a la escena al aire (o a la primera) y activa el
-        de `abilities`. No lanza nunca; devuelve si OBS lo recibió."""
+        """Botón «Probar»: apunta los filtros a la escena al aire (o, si no hay, a la primera con
+        «Mostrar» marcado; nunca a un jugador oculto) y activa el de `abilities`. No lanza nunca;
+        devuelve si OBS lo recibió."""
         with self._lock:
             if not self.connected or self._client is None:
                 return False
+            target = self._last_scene if self._last_scene and self._visible(self._last_scene) else None
+            target = target or next((s for s in config.PLAYER_SCENES if self._visible(s)), None)
+            if target is None:
+                self._emit(tr("Probar: ningún jugador tiene «Mostrar» marcado; no se movió nada"))
+                return False
             try:
-                self._point_filters(self._last_scene or config.PLAYER_SCENES[0])
+                self._point_filters(target)
                 self._enable_filter(abilities)
             except Exception as e:  # noqa: BLE001
                 self._fail(e)
