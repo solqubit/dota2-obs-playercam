@@ -314,12 +314,12 @@ live verification still requires observing the hero's HUD before and after the u
 .venv\Scripts\pyinstaller packaging/overpower_cams.spec --noconfirm
 ```
 ```bash
-.venv\Scripts\python packaging/make_zip.py 2.0.1
+.venv\Scripts\python packaging/make_zip.py 2.0.2
 ```
 
 This creates two git-ignored folders:
 - `dist\` with the results: `dist\DotaPlayerCams\` (the app, ready to run) and
-  `dist\DotaPlayerCams-v2.0.1-windows.zip`. The zip contains the app, both first-run guides,
+  `dist\DotaPlayerCams-v2.0.2-windows.zip`. The zip contains the app, both first-run guides,
   the licenses, third-party notices and the complete Camaraman demo (graphics, scene,
   preparer and Move Transition 3.2.1 installer plus its source).
 - `build\` with PyInstaller's temporary files, safe to delete.

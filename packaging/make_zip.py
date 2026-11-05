@@ -12,7 +12,7 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parent.parent
 APP = "DotaPlayerCams"
-DEFAULT_VERSION = "2.0.1"
+DEFAULT_VERSION = "2.0.2"
 MOVE_RELEASE = "https://github.com/exeldro/obs-move-transition/releases/download/3.2.1/"
 MOVE_FILES = {
     "move-transition-3.2.1-windows-installer.exe": (

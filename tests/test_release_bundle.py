@@ -8,7 +8,7 @@ import pytest
 from overpower_cams.demo import prepare_demo
 
 ROOT = Path(__file__).resolve().parent.parent
-VERSION = "2.0.1"
+VERSION = "2.0.2"
 spec = importlib.util.spec_from_file_location("release_zip", ROOT / "packaging/make_zip.py")
 release = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(release)
@@ -76,7 +76,7 @@ def test_la_version_por_defecto_es_la_actual_y_trae_sus_notas():
     assert release.DEFAULT_VERSION == VERSION
     assert (ROOT / f"packaging/RELEASE_NOTES_v{VERSION}.md").is_file()
     info = (ROOT / "packaging/version_info.txt").read_text(encoding="utf-8")
-    assert "(2, 0, 1, 0)" in info and "'2.0.1.0'" in info and "2.0.0" not in info
+    assert "(2, 0, 2, 0)" in info and "'2.0.2.0'" in info and "2.0.1" not in info
 
 
 def test_el_zip_lleva_las_notas_de_su_version(tmp_path):
