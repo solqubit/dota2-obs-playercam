@@ -38,6 +38,24 @@ class LiveState:
     mode: str   # "auto" | "hidden"
 
 
+def atomic_write_bytes(path: Path, data: bytes) -> None:
+    """Escribe `data` en `path` sin dejarlo a medias: archivo temporal en la misma carpeta y
+    os.replace (con unos reintentos si Windows lo tiene ocupado). Si falla, el archivo anterior
+    queda igual y no quedan temporales. La carpeta tiene que existir."""
+    path = Path(path)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(data)
+        Storage._replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
 def _is_int(v) -> bool:
     return isinstance(v, int) and not isinstance(v, bool)
 
@@ -196,6 +214,8 @@ class Storage:
                     setattr(p, f, item[f])
             if item.get("use") in USES:
                 p.use = item["use"]
+            if isinstance(item.get("visible"), bool):   # falta o inválido: visible
+                p.visible = item["visible"]
         return out
 
     def save_players(self, d: dict[str, PlayerConfig]) -> None:

@@ -1,4 +1,5 @@
 """Revisiones y arreglos (checks.py). Todo con tmp_path y fakes: nada toca Steam/Dota/OBS reales."""
+import os
 from pathlib import Path
 
 import pytest
@@ -14,7 +15,7 @@ from overpower_cams.storage import Settings, Storage
 from conftest import FakeObsClient, fake_camaraman, filtros_camaraman, layout_camaraman, layout_nuevo
 
 DATA = Path(__file__).parent / "data" / "dotakeys_ejemplo.lst"
-IDS = ["dota", "gsi_cfg", "gsi_data", "keys", "obs", "scene", "player_scenes", "player_sources",
+IDS = ["dota", "gsi_cfg", "gsi_data", "keys", "assisted_camera", "obs", "scene", "player_scenes", "player_sources",
        "move_filters", "scene_images", "portraits"]
 NOW = 1000.0
 
@@ -80,7 +81,8 @@ def test_orden_e_ids_y_todo_ok(tmp_path):
     res = run_checks(ctx, is_running=CERRADO)
     assert [r.id for r in res] == IDS
     assert all(isinstance(r, CheckResult) for r in res)
-    assert [r.status for r in res] == ["ok"] * len(IDS), [(r.id, r.status, r.detail) for r in res]
+    esperado = ["info" if cid == "assisted_camera" else "ok" for cid in IDS]   # opcional, sin configurar
+    assert [r.status for r in res] == esperado, [(r.id, r.status, r.detail) for r in res]
 
 
 def test_run_checks_no_modifica_nada(tmp_path):
@@ -447,6 +449,19 @@ def test_player_sources_avisa_quien_no_tiene_url_en_la_fuente_elegida(tmp_path):
         apply_fix("player_sources", ctx)
 
 
+def test_player_sources_no_avisa_por_jugadores_ocultos(tmp_path):
+    from overpower_cams.players import PlayerConfig
+    ctx, _ = make_ctx(tmp_path)
+    con_links(ctx, **{"1_Mid_laner": PlayerConfig("M", "", "", "camera", visible=False),
+                      "2_Offlaner": PlayerConfig("O", "", "http://foto", "camera")})
+    r = check(ctx, "player_sources")
+    assert r.status == "warn"
+    assert "2 Offlaner: Cámara sin URL" in r.detail and "1 Mid laner" not in r.detail
+    con_links(ctx, **{"1_Mid_laner": PlayerConfig("M", "", "", "camera", visible=False)})
+    r = check(ctx, "player_sources")
+    assert r.status == "ok" and "visibles" in r.detail
+
+
 def test_player_sources_usa_los_jugadores_en_memoria(tmp_path, monkeypatch):
     ctx, _ = make_ctx(tmp_path)
     con_links(ctx)
@@ -619,3 +634,186 @@ def test_run_checks_ve_la_escena_importada_despues_de_conectar(tmp_path):
     ctx.obs.load_items()                           # se conectó sin la escena
     fake.scene_exists = True                       # y luego la importaron
     assert check(ctx, "scene").status == "ok"
+
+
+# ---------- cámara asistida (autoexec.cfg) ----------
+
+ASIST = "dota_toggle_assisted_camera_operator"
+
+
+def _autoexec(ctx, texto: str):
+    ruta = paths.autoexec_path(ctx.dota)
+    ruta.parent.mkdir(parents=True, exist_ok=True)
+    ruta.write_bytes(texto.encode("utf-8"))
+    return ruta
+
+
+def test_asistida_sin_configurar_es_neutral_con_configurar(tmp_path):
+    ctx, _ = make_ctx(tmp_path)
+    r = check(ctx, "assisted_camera")
+    assert r.status == "info" and r.title == "Cámara asistida"
+    assert r.detail == "No configurada (opcional)" and r.fix_label == "Configurar…"
+    assert not paths.autoexec_path(ctx.dota).exists()               # revisar no crea nada
+
+
+def test_asistida_configurada_y_libre(tmp_path):
+    ctx, _ = make_ctx(tmp_path)
+    _autoexec(ctx, f'echo hola\r\nbind "F11" "{ASIST}"\r\n')
+    r = check(ctx, "assisted_camera")
+    assert r.status == "ok" and r.detail == "F11 activa la cámara asistida"
+    assert r.fix_label == "Cambiar…"
+
+
+def test_asistida_choca_con_un_atajo_de_jugador(tmp_path):
+    ctx, _ = make_ctx(tmp_path)                    # el ejemplo tiene CourierSelect en F4
+    _autoexec(ctx, f"bind f4 {ASIST}\n")
+    r = check(ctx, "assisted_camera")
+    assert r.status == "warn" and r.fix_label == "Cambiar…"
+    assert r.detail == ("F4 también la usa «Seleccionar mensajero» en Dota; Dota gana y la "
+                        "cámara asistida no se activa")
+
+
+def test_asistida_choca_con_una_tecla_propia_de_dota_o_con_otro_bind(tmp_path):
+    ctx, _ = make_ctx(tmp_path)
+    cfg = paths.user_keys_default_path(ctx.dota)
+    cfg.parent.mkdir(parents=True, exist_ok=True)
+    cfg.write_text('"config"\n{\n\t"bindings"\n\t{\n\t\t"F12" "return_to_tools_from_engine"\n\t}\n}\n',
+                   encoding="utf-8")
+    _autoexec(ctx, f'bind "F12" "{ASIST}"\n')
+    r = check(ctx, "assisted_camera")
+    assert r.status == "warn" and "return_to_tools_from_engine" in r.detail
+    _autoexec(ctx, f'bind "F11" "{ASIST}"\nbind F11 "say hola"\n')
+    r = check(ctx, "assisted_camera")
+    assert r.status == "warn" and "say hola" in r.detail
+
+
+def test_asistida_sin_carpeta_de_dota_no_falla(tmp_path):
+    ctx, _ = make_ctx(tmp_path)
+    for dota in (None, tmp_path / "no existe"):
+        ctx.dota = dota
+        r = check(ctx, "assisted_camera")
+        assert r.status == "info" and r.fix_label is None
+        assert r.detail == "No se puede revisar sin la carpeta de Dota"
+
+
+def test_asistida_sin_archivo_de_teclas_igual_funciona(tmp_path):
+    ctx, _ = make_ctx(tmp_path, with_keys=False)
+    _autoexec(ctx, f"bind F4 {ASIST}\n")
+    assert check(ctx, "assisted_camera").status == "ok"
+
+
+def test_poner_tecla_asistida_escribe_y_explica_como_usarla_ya(tmp_path):
+    ctx, _ = make_ctx(tmp_path)
+    msg = checks.set_assisted_camera(ctx, "f11", is_running=ABIERTO)   # con Dota abierto se puede
+    assert f'bind "F11" "{ASIST}"' in paths.autoexec_path(ctx.dota).read_text(encoding="utf-8")
+    assert "próxima vez que abras Dota" in msg
+    assert f'bind "F11" "{ASIST}"' in msg and "consola" in msg
+    assert check(ctx, "assisted_camera").status == "ok"
+
+
+def test_poner_tecla_asistida_que_choca_se_niega_sin_escribir(tmp_path):
+    ctx, _ = make_ctx(tmp_path)
+    with pytest.raises(FixRefused, match="Seleccionar mensajero"):
+        checks.set_assisted_camera(ctx, "F4", is_running=CERRADO)
+    assert not paths.autoexec_path(ctx.dota).exists()
+    with pytest.raises(FixRefused):
+        checks.set_assisted_camera(ctx, "  ", is_running=CERRADO)
+
+
+def test_poner_tecla_asistida_sin_dota_o_sin_permiso(tmp_path, monkeypatch):
+    ctx, _ = make_ctx(tmp_path)
+    dota = ctx.dota
+    ctx.dota = None
+    with pytest.raises(FixRefused, match="carpeta de Dota"):
+        checks.set_assisted_camera(ctx, "F11", is_running=CERRADO)
+    ctx.dota = dota
+
+    def boom(*a, **k):
+        raise PermissionError("Acceso denegado")
+    monkeypatch.setattr(checks.autoexec, "write_assisted_key", boom)
+    with pytest.raises(FixRefused, match="Acceso denegado"):
+        checks.set_assisted_camera(ctx, "F11", is_running=CERRADO)
+
+
+def test_quitar_tecla_asistida(tmp_path):
+    ctx, _ = make_ctx(tmp_path)
+    _autoexec(ctx, f"echo hola\nbind F11 {ASIST}\n")
+    msg = checks.remove_assisted_camera(ctx, is_running=CERRADO)
+    assert 'unbind "F11"' in msg
+    assert paths.autoexec_path(ctx.dota).read_text(encoding="utf-8") == "echo hola\n"
+    assert check(ctx, "assisted_camera").status == "info"
+    with pytest.raises(FixRefused):
+        checks.remove_assisted_camera(ctx, is_running=CERRADO)
+
+
+def test_assisted_key_uses_incluye_dota_y_otros_binds(tmp_path):
+    ctx, _ = make_ctx(tmp_path)
+    _autoexec(ctx, f"bind F11 {ASIST}\nbind F7 \"say x\"\n")
+    labels = dict((k.upper(), lbl) for lbl, k in checks.assisted_key_uses(ctx))
+    assert labels["F4"] == "Seleccionar mensajero"
+    assert "say x" in labels["F7"]
+    assert "F11" not in labels                                   # nuestro propio bind no choca
+
+
+# ---------- auditoría: arreglos que cambian archivos de Dota ----------
+
+def test_arreglo_gsi_no_toca_otros_cfg_de_gsi(tmp_path):
+    ctx, _ = make_ctx(tmp_path, with_cfg=False)
+    carpeta = paths.gsi_cfg_path(ctx.dota).parent
+    carpeta.mkdir(parents=True)
+    otro = carpeta / "gamestate_integration_logitech.cfg"
+    otro.write_bytes(b'"Logitech" { "uri" "http://127.0.0.1:1" }')
+    apply_fix("gsi_cfg", ctx, is_running=CERRADO)
+    assert otro.read_bytes() == b'"Logitech" { "uri" "http://127.0.0.1:1" }'
+    assert sorted(p.name for p in carpeta.iterdir()) == sorted([otro.name, config.GSI_CFG_NAME])
+    assert not (ctx.storage.base / "backups").exists()
+
+
+def test_arreglo_gsi_crea_cfg_completo_si_falta(tmp_path):
+    ctx, _ = make_ctx(tmp_path, with_cfg=False)
+    assert not (ctx.dota / "game" / "dota" / "cfg").exists()
+    apply_fix("gsi_cfg", ctx, is_running=CERRADO)
+    assert check(ctx, "gsi_cfg").status == "ok"
+
+
+def test_arreglo_gsi_sin_permiso_es_fixrefused_y_no_deja_temporales(tmp_path, monkeypatch):
+    ctx, _ = make_ctx(tmp_path)
+    cfg = paths.gsi_cfg_path(ctx.dota)
+    cfg.write_text("viejo", encoding="utf-8")
+
+    def boom(src, dst):
+        raise PermissionError("Acceso denegado")
+    monkeypatch.setattr(os, "replace", boom)
+    with pytest.raises(FixRefused, match="Acceso denegado"):
+        apply_fix("gsi_cfg", ctx, is_running=CERRADO)
+    assert cfg.read_text(encoding="utf-8") == "viejo"
+    assert [p.name for p in cfg.parent.iterdir()] == [cfg.name]
+
+
+def test_arreglo_teclas_no_mueve_nada_a_la_tecla_de_la_camara_asistida(tmp_path):
+    ctx, _ = make_ctx(tmp_path)
+    _autoexec(ctx, f"bind F9 {ASIST}\n")
+    apply_fix("keys", ctx, is_running=CERRADO)
+    texto = ctx.keys_file.read_text(encoding="utf-8")
+    bloque = texto[texto.index('"SpectatorHeroSelect"'):]
+    bloque = bloque[:bloque.index("}")]
+    assert '"F11"' in bloque and '"F9"' not in bloque
+
+
+def test_teclas_sin_steam_lo_dice(tmp_path):
+    ctx, _ = make_ctx(tmp_path, with_keys=False)
+    ctx.steam = None
+    r = check(ctx, "keys")
+    assert r.status == "warn" and "No encontré Steam" in r.detail
+
+
+def test_asistida_con_bind_encadenado_se_ve_configurada_y_no_se_duplica(tmp_path):
+    ctx, _ = make_ctx(tmp_path)
+    ruta = _autoexec(ctx, f'bind F11 "{ASIST}; echo x"\n')
+    r = check(ctx, "assisted_camera")
+    assert r.status == "ok" and r.detail == "F11 activa la cámara asistida"
+    with pytest.raises(FixRefused, match="a mano"):
+        checks.set_assisted_camera(ctx, "F12", is_running=CERRADO)
+    with pytest.raises(FixRefused, match="a mano"):
+        checks.remove_assisted_camera(ctx, is_running=CERRADO)
+    assert ruta.read_text(encoding="utf-8") == f'bind F11 "{ASIST}; echo x"\n'

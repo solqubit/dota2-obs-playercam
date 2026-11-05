@@ -2,6 +2,7 @@
 from pathlib import Path
 
 from .config import GSI_CFG_TEXT
+from .storage import atomic_write_bytes
 
 
 def _compacto(texto: str) -> str:
@@ -23,7 +24,8 @@ def cfg_status(path: Path) -> str:
 
 
 def write_cfg(path: Path) -> None:
-    """Escribe GSI_CFG_TEXT en `path`, creando las carpetas que falten."""
+    """Escribe GSI_CFG_TEXT en `path` (de forma atómica), creando las carpetas que falten.
+    Solo toca ese archivo: los .cfg de GSI de otros programas quedan igual."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(GSI_CFG_TEXT, encoding="utf-8")
+    atomic_write_bytes(path, GSI_CFG_TEXT.encode("utf-8"))

@@ -50,6 +50,14 @@ def cleanup_qt_widgets(request):
 
 
 @pytest.fixture(autouse=True)
+def sin_cuenta_de_steam_real(monkeypatch):
+    """Ningún test lee la cuenta de Steam activa del registro real (ActiveProcess/ActiveUser):
+    los que la necesitan ponen la suya con monkeypatch."""
+    from overpower_cams import paths
+    monkeypatch.setattr(paths, "_read_active_user", lambda: None)
+
+
+@pytest.fixture(autouse=True)
 def idioma_espanol():
     """Los tests comparan textos en español: cada test arranca en "es" (y se restaura al final),
     sin importar el idioma de Windows de la PC que los corre."""

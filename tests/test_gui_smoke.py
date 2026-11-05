@@ -89,7 +89,7 @@ def test_ventana_se_arma_sin_obs(qapp, appdata):
         assert win.timer.isActive()
         # las revisiones llegan desde otro hilo y arman una fila por revisión
         assert [r.id for r in win.check_results] == [
-            "dota", "gsi_cfg", "gsi_data", "keys", "obs", "scene", "player_scenes",
+            "dota", "gsi_cfg", "gsi_data", "keys", "assisted_camera", "obs", "scene", "player_scenes",
             "player_sources", "move_filters", "scene_images", "portraits"]
         assert next(r for r in win.check_results if r.id == "obs").status == "error"
     finally:

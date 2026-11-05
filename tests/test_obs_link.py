@@ -700,3 +700,170 @@ def test_refresh_player_mode_ignora_escena_que_no_esta_al_aire():
     fake.ops.clear()
     assert link.refresh_player_mode(MID) is False
     assert fake.ops == []
+
+
+# ---------- jugador oculto («Mostrar» desmarcado) ----------
+
+def oculto(**kw):
+    return PlayerConfig(name="x", camera_url="http://cam", photo_url="http://foto", visible=False, **kw)
+
+
+def test_apply_de_jugador_oculto_no_enciende_nada_y_apaga_la_anterior_y_el_borde():
+    players = jugadores(**{"1_Mid_laner": oculto()})
+    fake, link = listo(players=players)
+    link.apply(HC, "a", 4)
+    fake.ops.clear()
+    link.apply(MID, "b", 5)
+    assert pos(fake, MID) is False and pos(fake, HC) is False and pos(fake, "Borde") is False
+    assert not [o for o in fake.ops if o[0] in ("transform", "filter_settings", "filter_enabled")]
+    assert not [o for o in fake.ops if o[0] == "enable" and o[-1] is True]
+    assert [s for s in config.PLAYER_SCENES if pos(fake, s)] == []
+    assert link.connected is True and link.pending_scene is None
+
+
+def test_apply_de_jugador_oculto_sin_nada_al_aire_no_toca_obs():
+    players = jugadores(**{"1_Mid_laner": oculto()})
+    fake, link = listo(players=players)
+    link.apply(MID, "x", 4)
+    assert fake.ops == []
+    link.retrigger(MID, 6)                                   # sin filtros para un oculto
+    assert link.refresh_player_mode(MID) is False
+    assert fake.ops == []
+
+
+def test_ocultar_al_jugador_al_aire_apaga_su_escena_y_el_borde_al_momento():
+    players = jugadores()
+    fake, link = listo(players=players)
+    link.apply(HC, "x", 4)
+    assert pos(fake, HC) is True and pos(fake, "Borde") is True
+    fake.ops.clear()
+    players[HC].visible = False
+    assert link.refresh_player_visibility(HC) is True
+    assert pos(fake, HC) is False and pos(fake, "Borde") is False
+    assert not [o for o in fake.ops if o[0] in ("transform", "filter_settings")]
+    fake.ops.clear()
+    link.apply(HC, "mismo", 4)                               # sigue elegido y oculto: nada
+    assert fake.ops == []
+
+
+def test_mostrar_al_jugador_elegido_lo_pone_al_aire_como_un_apply():
+    players = jugadores(**{"1_Hard_carry": oculto(use="photo")})
+    fake, link = listo(players=players)
+    link.apply(HC, "x", 5)
+    assert pos(fake, HC) is False
+    fake.ops.clear()
+    players[HC].visible = True
+    assert link.refresh_player_visibility(HC) is True
+    assert fake.ops == [
+        ("transform", "Juego", HC, {"positionX": 456.0, "positionY": 1819.0,
+                                    "scaleX": 0.18, "scaleY": 0.18}),
+        ("enable", HC, source_name("Foto", HC), True),
+        ("enable", HC, source_name("Camara", HC), False),
+        ("enable", "Juego", HC, True),
+        ("enable", "Juego", "Borde", True),
+        ("filter_settings", "H 4 habilidades", {"source": HC}),
+        ("filter_settings", "H 5 habilidades", {"source": HC}),
+        ("filter_settings", "H 6 habilidades", {"source": HC}),
+    ]
+    fake.ops.clear()
+    link.retrigger(HC, 6)                                    # ya está al aire: el filtro sí
+    assert fake.ops == [("filter_enabled", "H 6 habilidades", True)]
+
+
+def test_mostrar_u_ocultar_a_otro_jugador_no_toca_obs():
+    players = jugadores()
+    fake, link = listo(players=players)
+    link.apply(HC, "x")
+    fake.ops.clear()
+    players[MID].visible = False
+    assert link.refresh_player_visibility(MID) is False
+    players[MID].visible = True
+    assert link.refresh_player_visibility(MID) is False
+    assert fake.ops == []
+    assert pos(fake, HC) is True
+
+
+def test_refresh_player_visibility_sin_conexion_no_lanza_ni_espera():
+    players = jugadores()
+    fake, link = listo(players=players)
+    link.apply(HC, "x")
+    link.close()
+    players[HC].visible = False
+    assert link.refresh_player_visibility(HC) is False
+    fake2, link2 = listo(players=players)
+    link2.apply(HC, "x")
+    fake2.fail_next = True
+    link2._last_scene = None                                 # fuerza llamadas a OBS
+    players[HC].visible = True
+    assert link2.refresh_player_visibility(HC) is False
+    assert link2.connected is False and link2.pending_scene == HC
+
+
+def test_refresh_player_visibility_no_espera_a_una_reconexion_en_curso():
+    players = jugadores()
+    fake, link = listo(players=players)
+    link.apply(HC, "x")
+    tomado, soltar = threading.Event(), threading.Event()
+
+    def retener():
+        with link._lock:
+            tomado.set()
+            soltar.wait(5)
+    t = threading.Thread(target=retener)
+    t.start()
+    tomado.wait(5)
+    link.connected = False
+    t0 = time.monotonic()
+    assert link.refresh_player_visibility(HC) is False
+    assert time.monotonic() - t0 < 1
+    soltar.set()
+    t.join(5)
+
+
+def test_reconexion_respeta_al_jugador_oculto():
+    players = jugadores(**{"1_Mid_laner": oculto()})
+    fake, link = listo(players=players)
+    link.apply(HC, "x", 4)
+    fake.restart()
+    link.apply(MID, "tras reinicio", 4)                      # falla: queda pendiente
+    assert link.connected is False and link.pending_scene == MID
+    assert link.ensure_connected(MID) is True
+    assert pos(fake, MID) is False and pos(fake, HC) is False and pos(fake, "Borde") is False
+    players[MID].visible = True                              # sigue elegido: se muestra
+    assert link.refresh_player_visibility(MID) is True
+    assert pos(fake, MID) is True and pos(fake, "Borde") is True
+
+
+def test_reconexion_sin_pedido_pendiente_respeta_al_oculto():
+    players = jugadores()
+    fake, link = listo(players=players)
+    link.apply(HC, "x", 4)
+    players[HC].visible = False
+    fake.restart()
+    assert link.ping() is False
+    assert link.ensure_connected(HC) is True
+    assert pos(fake, HC) is False and pos(fake, "Borde") is False
+
+
+def test_probar_con_el_elegido_oculto_usa_el_primer_jugador_visible():
+    players = jugadores(**{"1_Hard_carry": oculto(), "1_Mid_laner": oculto()})
+    fake, link = listo(players=players)
+    link.apply(MID, "x", 4)                                  # elegido pero oculto
+    fake.ops.clear()
+    assert link.test_filter(5) is True
+    assert [o for o in fake.ops if o[0] == "filter_settings"] == [
+        ("filter_settings", n, {"source": OFF}) for n in HUD_FILTERS.values()]
+    assert fake.ops[-1] == ("filter_enabled", "H 5 habilidades", True)
+    assert pos(fake, MID) is False and pos(fake, HC) is False
+
+
+def test_probar_sin_ningun_jugador_visible_no_anima_y_avisa():
+    events = []
+    players = {s: oculto() for s in config.PLAYER_SCENES}
+    fake, link = listo(players=players, events=events)
+    link.apply(HC, "x", 4)
+    fake.ops.clear()
+    assert link.test_filter(4) is False
+    assert fake.ops == []
+    assert any("Probar" in e and "Mostrar" in e for e in events)
+    assert link.connected is True

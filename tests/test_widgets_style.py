@@ -77,3 +77,19 @@ def test_texto_largo_se_corta_con_puntos_suspensivos(qapp):
     lbl.resize(2000, 20)
     qapp.processEvents()
     assert lbl.text() == lbl.full_text()
+
+
+def test_casilla_tiene_nombre_accesible_y_foco_visible_aun_marcada(qapp):
+    from overpower_cams import i18n
+    from overpower_cams.gui.widgets import CheckBox
+    cb = CheckBox(i18n.tr("Mostrar"), "tooltip")
+    assert cb.accessibleName() == "Mostrar"
+    cb.setChecked(True)
+
+    def imagen(foco):
+        cb.hasFocus = lambda: foco
+        return cb.grab().toImage()
+    sin_foco, con_foco = imagen(False), imagen(True)
+    # el anillo de foco va por fuera del cuadro: el borde exterior cambia solo con foco
+    esquina = (cb.width() // 2, 0)
+    assert sin_foco.pixelColor(*esquina) != con_foco.pixelColor(*esquina)

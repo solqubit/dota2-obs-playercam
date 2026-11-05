@@ -57,14 +57,98 @@ def gsi_cfg_path(dota: Path) -> Path:
     return Path(dota) / "game" / "dota" / "cfg" / "gamestate_integration" / GSI_CFG_NAME
 
 
-def dota_keys_file(steam: Path | None) -> Path | None:
-    """dotakeys_personal.lst de la cuenta de Steam usada más recientemente."""
-    if steam is None:
+STEAMID64_BASE = 76561197960265728   # SteamID64 = esto + el número de cuenta (accountid)
+_USER_RE = re.compile(r'"(\d{17})"\s*\{([^{}]*)\}')
+_FIELD_RE = r'"{name}"\s*"([^"]*)"'
+
+
+def _read_active_user_registry() -> int | None:
+    """Cuenta con la que está abierto Steam ahora (ActiveProcess/ActiveUser de HKCU; 0 o
+    nada si Steam está cerrado). Nunca lanza."""
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Valve\Steam\ActiveProcess") as k:
+            valor = winreg.QueryValueEx(k, "ActiveUser")[0]
+    except OSError:
         return None
+    return valor if isinstance(valor, int) and valor > 0 else None
+
+
+# Los tests la reemplazan (conftest) para no leer el registro real.
+_read_active_user = _read_active_user_registry
+
+
+def _login_users_most_recent(steam: Path) -> str | None:
+    """accountid de la última cuenta que entró a Steam según config/loginusers.vdf:
+    la de "MostRecent" "1" o, si ninguna lo tiene (Steam nuevo), la de "timestamp" más alto."""
+    try:
+        texto = (Path(steam) / "config" / "loginusers.vdf").read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return None
+    mejor, mejor_orden = None, None
+    for id64, cuerpo in _USER_RE.findall(texto):
+        cuenta = int(id64) - STEAMID64_BASE
+        if cuenta <= 0:
+            continue
+        reciente = re.search(_FIELD_RE.format(name="MostRecent"), cuerpo, re.IGNORECASE)
+        stamp = re.search(_FIELD_RE.format(name="timestamp"), cuerpo, re.IGNORECASE)
+        orden = (bool(reciente) and reciente.group(1).strip() == "1",
+                 int(stamp.group(1)) if stamp and stamp.group(1).strip().isdigit() else 0)
+        if mejor_orden is None or orden > mejor_orden:
+            mejor, mejor_orden = str(cuenta), orden
+    return mejor
+
+
+def _keys_path(steam: Path, account: str) -> Path:
+    return Path(steam) / "userdata" / account / DOTA_APP_ID / "remote" / "cfg" / "dotakeys_personal.lst"
+
+
+def _known_account(steam: Path) -> str | None:
+    """La cuenta que dicen Steam (abierto) o loginusers.vdf, si tiene carpeta en userdata."""
+    activa = _read_active_user()
+    for cuenta in (str(activa) if activa else None, _login_users_most_recent(steam)):
+        if cuenta and (Path(steam) / "userdata" / cuenta).is_dir():
+            return cuenta
+    return None
+
+
+def _mtime_keys_file(steam: Path) -> Path | None:
     archivos = glob.glob(os.path.join(
         str(steam), "userdata", "*", DOTA_APP_ID, "remote", "cfg", "dotakeys_personal.lst"))
     mejor = max(archivos, key=lambda f: os.path.getmtime(os.path.dirname(f)), default=None)
     return Path(mejor) if mejor else None
+
+
+def steam_account_id(steam: Path | None) -> str | None:
+    """accountid (carpeta de userdata) de la cuenta de Steam en uso: la abierta ahora según el
+    registro; si no, la última de loginusers.vdf; si no, la que tiene el archivo de teclas de
+    Dota tocado más recientemente."""
+    if steam is None:
+        return None
+    cuenta = _known_account(steam)
+    if cuenta is not None:
+        return cuenta
+    f = _mtime_keys_file(steam)
+    return f.parents[3].name if f else None
+
+
+def dota_keys_file(steam: Path | None) -> Path | None:
+    """dotakeys_personal.lst de la cuenta de Steam en uso (`steam_account_id`). Si esa cuenta
+    se conoce pero nunca abrió Dota, None: no se usan las teclas de OTRA cuenta."""
+    cuenta = steam_account_id(steam)
+    if cuenta is None:
+        return None
+    f = _keys_path(steam, cuenta)
+    return f if f.is_file() else None
+
+
+def autoexec_path(dota: Path) -> Path:
+    """autoexec.cfg de Dota: lo ejecuta solo al arrancar (no hace falta opción de lanzamiento)."""
+    return Path(dota) / "game" / "dota" / "cfg" / "autoexec.cfg"
+
+
+def user_keys_default_path(dota: Path) -> Path:
+    """Teclas que Dota trae asignadas por defecto a comandos de consola (p. ej. F10)."""
+    return Path(dota) / "game" / "dota" / "cfg" / "user_keys_default.vcfg"
 
 
 def app_data_dir() -> Path:

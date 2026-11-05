@@ -1,13 +1,15 @@
-"""Teclas de espectador de Dota 2 (dotakeys_personal.lst, texto KeyValues de Valve).
+"""Teclas de Dota 2 (dotakeys_personal.lst, texto KeyValues de Valve).
 
 Casi todo son funciones puras: reciben y devuelven texto, no leen archivos ni imprimen.
-La única que lee un archivo es `read_player_keys` (sin Qt: la usan la app y la consola).
-La lógica de parseo viene de `load_player_keys()` del script de consola probado.
+Las que leen un archivo (`read_player_keys`, `read_key_uses`, `read_default_binds`) nunca
+lanzan (sin Qt: las usan la app y la consola). La lógica de parseo viene de
+`load_player_keys()` del script de consola probado.
 """
 import re
 from pathlib import Path
 
 from .config import SLOTS
+from .paths import user_keys_default_path
 from .i18n import tr
 
 # Nombres de tecla del teclado numérico en la config de Dota (estilo Source)
@@ -24,6 +26,13 @@ _PLAYER_PREFIX = "SpectatorCameraFocusPlayer"
 _ENTRY_RE = re.compile(r'"(Spectator\w*)"\s*\{([^{}]*)\}')
 _KEY_RE = re.compile(r'"Key"(\s*)"([^"]*)"')
 _MOD_RE = re.compile(r'"Modifier"\s*"([^"]*)"')
+# Cualquier entrada `"Accion" { ... }` de cualquier sección (Keys, Items…).
+_ANY_ENTRY_RE = re.compile(r'"(\w+)"\s*\{([^{}]*)\}')
+# Campos con tecla: "Key" y, si el formato las tiene, las secundarias ("Key2", "SecondaryKey"…).
+_ANY_KEY_RE = re.compile(r'"((?:Secondary|Alt)?Key\d*)"\s*"([^"]*)"', re.IGNORECASE)
+# Bloque "bindings" de user_keys_default.vcfg: `"TECLA" "comando"` por línea.
+_BINDINGS_RE = re.compile(r'"bindings"\s*\{([^{}]*)\}', re.IGNORECASE)
+_PAIR_RE = re.compile(r'"([^"]*)"[ \t]+"([^"]*)"')
 _LINK_RE = re.compile(r'("LinkPlayerToSpectator"\s*)"([^"]*)"')
 
 
@@ -41,6 +50,19 @@ def dota_key_to_vk(name):
     if n in _KP_NAMES:
         return 0x60 + _KP_NAMES[n]
     return None
+
+
+# Mismo botón del teclado numérico con dos nombres (Bloq Num activado o no).
+_KEY_ALIASES = {f"KP_{n}": name for name, n in _KP_NAMES.items() if not name[3:].isdigit()}
+_KEY_ALIASES.update({"INSERT": "INS", "DELETE": "DEL", "PAGEUP": "PGUP", "PAGEDOWN": "PGDN",
+                     "KP_DELETE": "KP_DEL", "RETURN": "ENTER"})
+
+
+def normalize_key(name: str) -> str:
+    """Nombre de tecla para comparar: sin espacios, en mayúsculas y con un solo nombre para
+    las del teclado numérico ("KP_1" y "KP_END" son la misma)."""
+    n = (name or "").strip().upper()
+    return _KEY_ALIASES.get(n, n)
 
 
 def key_name(vk):
@@ -170,18 +192,16 @@ def _asignar_tecla_vacia(text: str, m: "re.Match", tecla: str, eol: str) -> str:
 
 
 def _teclas_usadas(text: str) -> set[str]:
-    """Teclas (en mayúsculas) de las entradas Spectator* sin modificador."""
-    usadas = set()
-    for _name, body in _ENTRY_RE.findall(text):
-        key = _KEY_RE.search(body)
-        if key and _sin_modificador(body):
-            usadas.add(key.group(2).upper())
-    return usadas
+    """Teclas (normalizadas) de TODAS las entradas sin modificador, de jugador y de
+    espectador: al ver partidas Dota también dispara los atajos de jugador (y le ganan a un
+    `bind`), así que ninguna de esas teclas está libre."""
+    return {normalize_key(k) for _a, k in parse_key_uses(text)}
 
 
-def _mover_conflictos(text: str, tecla: str) -> str:
+def _mover_conflictos(text: str, tecla: str, reserved: set[str]) -> str:
     """Las entradas Spectator* (no de jugador) sin modificador que usan `tecla`
-    pasan a la primera libre de FALLBACK_KEYS, o se quedan sin "Key"."""
+    pasan a la primera libre de FALLBACK_KEYS (libre en todo el archivo y fuera de
+    `reserved`), o se quedan sin "Key"."""
     while True:
         for m in _ENTRY_RE.finditer(text):
             key = _KEY_RE.search(m.group(2))
@@ -189,7 +209,8 @@ def _mover_conflictos(text: str, tecla: str) -> str:
                     or key.group(2).upper() != tecla.upper() or not _sin_modificador(m.group(2))):
                 continue
             ini, fin = m.start(2) + key.start(), m.start(2) + key.end()
-            libre = next((k for k in FALLBACK_KEYS if k.upper() not in _teclas_usadas(text)), None)
+            ocupadas = _teclas_usadas(text) | reserved
+            libre = next((k for k in FALLBACK_KEYS if normalize_key(k) not in ocupadas), None)
             if libre:
                 # conserva el espaciado original entre "Key" y el valor
                 text = text[:ini] + f'"Key"{key.group(1)}"{libre}"' + text[fin:]
@@ -204,14 +225,17 @@ def _mover_conflictos(text: str, tecla: str) -> str:
             return text
 
 
-def fix_keys_text(text: str) -> str:
+def fix_keys_text(text: str, reserved=()) -> str:
     """Arregla el archivo de teclas para el modo espectador:
     (a) cada SpectatorCameraFocusPlayerN sin tecla recibe su tecla por defecto;
-    (b) otras acciones Spectator* sin modificador que usen esas teclas pasan a F9/F11
-        (o se quedan sin tecla si no hay libre);
+    (b) otras acciones Spectator* sin modificador que usen esas teclas pasan a F9/F11 si
+        esa tecla no la usa nada más del archivo (de jugador o de espectador) ni está en
+        `reserved` (la de la cámara asistida, las propias de Dota); si no hay libre, se
+        quedan sin tecla;
     (c) "LinkPlayerToSpectator" pasa a "0".
     Respeta los saltos de línea y el formato del archivo y no toca nada más."""
     eol = "\r\n" if "\r\n" in text else "\n"
+    reservadas = {normalize_key(k) for k in reserved}
 
     asignadas: list[str] = []
     for n in range(1, 11):
@@ -225,6 +249,113 @@ def fix_keys_text(text: str) -> str:
             asignadas.append(tecla)
 
     for tecla in asignadas:
-        text = _mover_conflictos(text, tecla)
+        text = _mover_conflictos(text, tecla, reservadas)
 
     return _LINK_RE.sub(lambda m: f'{m.group(1)}"0"', text, count=1)
+
+
+# ---------- todas las teclas en uso (para la cámara asistida) ----------
+
+def parse_key_uses(text: str) -> list[tuple[str, str]]:
+    """(acción, tecla) de cada entrada de cualquier sección que tenga tecla y no lleve
+    modificador (ALT+Q no choca con un `bind` en Q). Incluye las teclas secundarias."""
+    out = []
+    for name, body in _ANY_ENTRY_RE.findall(text):
+        if not _sin_modificador(body):
+            continue
+        for _campo, key in _ANY_KEY_RE.findall(body):
+            if key.strip():
+                out.append((name, key.strip()))
+    return out
+
+
+def read_key_uses(keys_file) -> list[tuple[str, str]]:
+    """`parse_key_uses` del archivo de teclas (vacío si no hay archivo o no se puede leer)."""
+    if keys_file is None:
+        return []
+    try:
+        text = Path(keys_file).read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return []
+    return parse_key_uses(text)
+
+
+def parse_default_binds(text: str) -> list[tuple[str, str]]:
+    """(comando, tecla) del bloque "bindings" de user_keys_default.vcfg (p. ej. F10)."""
+    m = _BINDINGS_RE.search(text or "")
+    if not m:
+        return []
+    return [(cmd, key) for key, cmd in _PAIR_RE.findall(m.group(1)) if key.strip()]
+
+
+def read_default_binds(dota) -> list[tuple[str, str]]:
+    """Teclas que Dota trae asignadas por defecto (vacío si no hay Dota o archivo)."""
+    if dota is None:
+        return []
+    try:
+        text = user_keys_default_path(dota).read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return []
+    return parse_default_binds(text)
+
+
+def _action_labels() -> dict[str, str]:
+    """Nombres legibles de las acciones más comunes (en el idioma de la interfaz)."""
+    return {
+        "CourierSelect": tr("Seleccionar mensajero"),
+        "CourierDeliver": tr("Mensajero: entregar objetos"),
+        "HeroSelect": tr("Seleccionar héroe"),
+        "SelectAll": tr("Seleccionar todas las unidades"),
+        "ScoreboardToggle": tr("Marcador"),
+        "SpectatorScoreboard": tr("Marcador"),
+        "Pause": tr("Pausa"),
+        "SpectatorPause": tr("Pausa"),
+        "Console": tr("Consola"),
+        "ShopToggle": tr("Abrir la tienda"),
+        "PurchaseQuickbuy": tr("Compra rápida"),
+        "PurchaseSticky": tr("Compra fija"),
+        "ScreenshotSettings": tr("Captura de pantalla"),
+        "ChatTeam": tr("Chat de equipo"),
+        "ChatGlobal": tr("Chat general"),
+        "SpectatorChat": tr("Chat de espectadores"),
+        "ActivateGlyph": tr("Glifo"),
+        "CameraGrip": tr("Arrastrar la cámara"),
+        "SpectatorCameraGrip": tr("Arrastrar la cámara"),
+        "CameraUp": tr("Cámara arriba"), "SpectatorCameraUp": tr("Cámara arriba"),
+        "CameraDown": tr("Cámara abajo"), "SpectatorCameraDown": tr("Cámara abajo"),
+        "CameraLeft": tr("Cámara a la izquierda"), "SpectatorCameraLeft": tr("Cámara a la izquierda"),
+        "CameraRight": tr("Cámara a la derecha"), "SpectatorCameraRight": tr("Cámara a la derecha"),
+        "SpectatorHeroSelect": tr("Seleccionar héroe (espectador)"),
+        "SpectatorFOWBoth": tr("Niebla: ver ambos equipos"),
+        "SpectatorFOWRadient": tr("Niebla: ver Radiant"),
+        "SpectatorFOWDire": tr("Niebla: ver Dire"),
+        "SpectatorStatsItem": tr("Gráfico de objetos"),
+        "SpectatorStatsGold": tr("Gráfico de oro"),
+        "SpectatorStatsXP": tr("Gráfico de experiencia"),
+        "SpectatorStatsWinChance": tr("Gráfico de probabilidad de victoria"),
+        "SpectatorBroadcasterMenu": tr("Menú de comentarista"),
+        "SpectatorIncreaseReplaySpeed": tr("Repetición: más rápido"),
+        "SpectatorDecreaseReplaySpeed": tr("Repetición: más lento"),
+        "SpectatorCoach_ViewToggle": tr("Vista de entrenador"),
+    }
+
+
+def action_label(action: str) -> str:
+    """Nombre legible de una acción de dotakeys_personal.lst; si no se conoce, el crudo."""
+    n = _numero_jugador(action)
+    if n is not None:
+        return tr("Cámara: jugador {n}", n=n)
+    return _action_labels().get(action, action)
+
+
+def key_conflicts(key: str, uses, label=action_label) -> list[str]:
+    """Nombres (legibles con `label`, sin repetir, en orden) de lo que usa `key` en `uses`,
+    una lista de (acción, tecla). Mayúsculas y alias del teclado numérico dan igual."""
+    k = normalize_key(key)
+    out: list[str] = []
+    for action, used in uses:
+        if normalize_key(used) == k:
+            name = label(action)
+            if name not in out:
+                out.append(name)
+    return out

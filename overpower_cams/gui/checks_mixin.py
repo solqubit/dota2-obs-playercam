@@ -5,16 +5,21 @@ quedan pendientes (la insignia del menú).
 Es un mixin de Shell: usa `_ctx_factory`, `obs`, `_settings`, `_events`, `_closed`,
 `_is_running`, `_fix_running`, `_run_bg`, `_reload_keys`, `_save_settings`, `storage`,
 `sidebar` y `_on_checks_rendered(results)`. `_build_checks_page()` arma la página y sus widgets
-`_rows_lay` y `recheck_button`."""
+`_rows_lay` y `recheck_button`.
+
+«Cámara asistida» no usa la confirmación de los arreglos: su botón abre el diálogo de la tecla
+(`AssistedKeyDialog`), que ya es la confirmación."""
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QFileDialog, QMessageBox, QPushButton, QScrollArea, QVBoxLayout,
-                               QWidget)
+from PySide6.QtWidgets import (QDialog, QFileDialog, QMessageBox, QPushButton, QScrollArea,
+                               QVBoxLayout, QWidget)
 
 from .. import checks, config, paths
 from ..checks import CheckResult, FixRefused
+from ..dota_keys import normalize_key
 from ..i18n import tr
+from .assisted_dialog import AssistedKeyDialog
 from .widgets import CheckRow, card, detail_label, not_dota_msg, page_layout
 
 
@@ -24,7 +29,8 @@ def image_filter() -> str:
 
 
 def pending_count(results) -> int:
-    """Revisiones con aviso o error (el número de la insignia de Revisión)."""
+    """Revisiones con aviso o error (el número de la insignia de Revisión). Las "info"
+    (opcionales sin configurar) no cuentan."""
     return sum(1 for r in results if r.status in ("warn", "error"))
 
 
@@ -111,6 +117,12 @@ class ChecksMixin:
 
     def _row_buttons(self, r: CheckResult) -> list[QPushButton]:
         out = []
+        if r.id == "assisted_camera":
+            if r.fix_label:
+                out.append(self._button(r.fix_label, self._open_assisted_dialog))
+            if r.status == "warn" and r.instructions:
+                out.append(self._button(tr("Ver instrucciones"), lambda r=r: self._show_instructions(r)))
+            return out
         if r.id == "dota" and r.fix_label:
             out.append(self._button(r.fix_label, self._browse_dota))
         elif r.fix_label:
@@ -154,6 +166,51 @@ class ChecksMixin:
             self._events.post(tr("Arreglado: {title}", title=r.title))
             if r.id == "keys":
                 self._reload_keys(ctx.keys_file)
+            QMessageBox.information(self, tr("Listo"), msg)
+        self.run_checks()
+
+    # ---- cámara asistida ----
+    def _open_assisted_dialog(self) -> None:
+        if self._fix_running:
+            return
+        ctx = self._ctx_factory(self.obs)
+        try:
+            current = checks.assisted_key(ctx)
+            uses = checks.assisted_key_uses(ctx)
+        except OSError as e:
+            QMessageBox.warning(self, tr("No se pudo leer"),
+                                tr("No pude leer autoexec.cfg: {error}", error=e))
+            return
+        dlg = AssistedKeyDialog(self, current, lambda key: checks.assisted_conflicts(key, uses))
+        res = dlg.exec()
+        if getattr(res, "value", res) != QDialog.DialogCode.Accepted.value:
+            return
+        self._apply_assisted(None if dlg.remove_requested else dlg.key)
+
+    def _apply_assisted(self, key: str | None) -> None:
+        """Escribe (o, con None, quita) la tecla en autoexec.cfg en otro hilo."""
+        if self._fix_running or self._closed:
+            return
+        ctx = self._ctx_factory(self.obs)
+        is_running = self._is_running
+        self._fix_running = True
+        if key is None:
+            work = lambda: checks.remove_assisted_camera(ctx, is_running=is_running)  # noqa: E731
+        else:
+            work = lambda: checks.set_assisted_camera(ctx, key, is_running=is_running)  # noqa: E731
+        self._run_bg(work, lambda msg, exc: self._assisted_done(key, msg, exc))
+
+    def _assisted_done(self, key, msg, exc) -> None:
+        self._fix_running = False
+        if self._closed:
+            return
+        if isinstance(exc, FixRefused):
+            QMessageBox.warning(self, tr("No se pudo cambiar"), str(exc))
+        elif exc is not None:
+            QMessageBox.critical(self, tr("Error al cambiar"), f"{type(exc).__name__}: {exc}")
+        else:
+            self._events.post(tr("Cámara asistida: tecla quitada (autoexec.cfg)") if key is None
+                              else tr("Cámara asistida en {key} (autoexec.cfg)", key=normalize_key(key)))
             QMessageBox.information(self, tr("Listo"), msg)
         self.run_checks()
 

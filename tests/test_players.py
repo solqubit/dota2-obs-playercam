@@ -2,7 +2,8 @@ from overpower_cams.players import PlayerConfig, TeamsConfig, effective_use
 
 
 def test_valores_por_defecto():
-    assert PlayerConfig() == PlayerConfig("", "", "", "camera")
+    assert PlayerConfig() == PlayerConfig("", "", "", "camera", True)
+    assert PlayerConfig().visible is True
     assert TeamsConfig() == TeamsConfig("", "")
 
 

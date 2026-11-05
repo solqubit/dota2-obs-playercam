@@ -1,8 +1,8 @@
 """Piezas chicas de la ventana: tema (oscuro/claro, boceto D v2), puntos de estado,
-encabezados de página, tarjetas, selector segmentado y filas de revisión."""
+encabezados de página, tarjetas, selector segmentado, casilla y filas de revisión."""
 from PySide6.QtCore import QPointF, QRectF, QSize, Qt
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPainterPath, QPalette, QPen
-from PySide6.QtWidgets import (QButtonGroup, QFrame, QHBoxLayout, QLabel, QPushButton,
+from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QFrame, QHBoxLayout, QLabel, QPushButton,
                                QSizePolicy, QVBoxLayout, QWidget)
 
 from ..i18n import tr
@@ -118,6 +118,7 @@ QPushButton:pressed {{ background: {hover}; }}
 QPushButton:disabled {{ color: {muted}; }}
 QPushButton#primary {{ background: {accent}; color: #ffffff; border: 1px solid {accent};
     font-weight: 600; }}
+QPushButton#primary:disabled {{ background: {hover}; color: {muted}; border: 1px solid {border}; }}
 
 QPushButton#seg {{ padding: 5px {seg}px; border: 1px solid {border}; border-radius: 0px;
     background: {input}; color: {muted}; }}
@@ -134,6 +135,11 @@ QListWidget#eventList {{ background: {card}; border: 1px solid {border}; border-
     padding: 8px; font-family: Consolas, monospace; font-size: 12px; }}
 QListWidget#eventList::item {{ padding: 3px 4px; border-bottom: 1px solid {border}; }}
 QFrame#checkRow {{ border: none; border-bottom: 1px solid {border}; }}
+QDialog#keyDialog {{ background: {bg}; }}
+QLabel#keyCap {{ background: {input}; color: {text}; border: 1px solid {border};
+    border-bottom: 3px solid {border}; border-radius: 10px; font-size: 26px; font-weight: 600;
+    padding: 10px 26px; min-width: 80px; }}
+QLabel#keyCap[chosen="true"] {{ border: 1px solid {accent}; border-bottom: 3px solid {accent}; }}
 QFrame#tableRow {{ background: transparent; border: none; border-bottom: 1px solid {border};
     border-radius: 0px; }}
 QFrame#tableRow[onair="true"] {{ background: {onair_row}; }}
@@ -219,7 +225,7 @@ def repolish(w: QWidget) -> None:
 
 
 class StatusIcon(QWidget):
-    """Círculo del color del estado con ✓ / ! / ✕ dibujados a mano (no depende de fuentes:
+    """Círculo del color del estado con ✓ / ! / ✕ / i dibujados a mano (no depende de fuentes:
     un emoji de color haría que error y ok se vean iguales)."""
     SIZE = 18
 
@@ -260,6 +266,9 @@ class StatusIcon(QWidget):
             a, b = s * 0.33, s * 0.67
             p.drawLine(QPointF(a, a), QPointF(b, b))
             p.drawLine(QPointF(a, b), QPointF(b, a))
+        elif self.status == "info":   # neutral (opcional, sin configurar): una «i»
+            p.drawPoint(QPointF(s / 2, s * 0.28))
+            p.drawLine(QPointF(s / 2, s * 0.46), QPointF(s / 2, s * 0.73))
         else:   # warn u otro: signo de exclamación
             p.drawLine(QPointF(s / 2, s * 0.27), QPointF(s / 2, s * 0.56))
             p.drawPoint(QPointF(s / 2, s * 0.73))
@@ -334,6 +343,57 @@ class Segmented(QWidget):
         b = self.buttons.get(value)
         if b is not None and not b.isChecked():
             b.setChecked(True)   # setChecked no emite clicked
+
+
+class CheckBox(QCheckBox):
+    """Casilla sin texto dibujada a mano con los colores del tema (la nativa casi no se ve en el
+    modo oscuro): cuadro como los campos de texto y, marcada, el color de acento con un ✓. Con el
+    foco del teclado lleva además un anillo por fuera del cuadro (se ve también marcada)."""
+    SIZE = 18
+    RING = 3          # px alrededor del cuadro para el anillo de foco
+
+    def __init__(self, accessible_name: str, tooltip: str = ""):
+        super().__init__()
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setAccessibleName(accessible_name)
+        side = self.SIZE + 2 * self.RING
+        self.setFixedSize(side, side)
+        if tooltip:
+            self.setToolTip(tooltip)
+
+    def sizeHint(self) -> QSize:
+        side = self.SIZE + 2 * self.RING
+        return QSize(side, side)
+
+    def hitButton(self, pos) -> bool:
+        return self.rect().contains(pos)
+
+    def paintEvent(self, _event) -> None:
+        c = THEMES[theme_name(self.palette())]
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        s, o = float(self.SIZE), float(self.RING)
+        on = self.isChecked()
+        if self.hasFocus():
+            ring = QColor(c["accent"])
+            ring.setAlpha(150)
+            p.setPen(QPen(ring, 2.0))
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.drawRoundedRect(QRectF(1.0, 1.0, s + 2 * o - 2, s + 2 * o - 2), 6, 6)
+        border = c["accent"] if on or self.underMouse() or self.hasFocus() else c["muted"]
+        p.setPen(QPen(QColor(border), 1.0))
+        p.setBrush(QColor(c["accent"] if on else c["input"]))
+        p.drawRoundedRect(QRectF(o + 0.5, o + 0.5, s - 1, s - 1), 4, 4)
+        if on:
+            p.setPen(QPen(QColor("#ffffff"), 2.0, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap,
+                          Qt.PenJoinStyle.RoundJoin))
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            path = QPainterPath(QPointF(o + s * 0.27, o + s * 0.52))
+            path.lineTo(QPointF(o + s * 0.44, o + s * 0.69))
+            path.lineTo(QPointF(o + s * 0.75, o + s * 0.34))
+            p.drawPath(path)
+        p.end()
 
 
 class CheckRow(QFrame):

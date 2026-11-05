@@ -160,6 +160,38 @@ def test_players_json_incompleto_o_invalido(tmp_path):
     assert st.load_teams() == TeamsConfig("", "B")
 
 
+def test_mostrar_jugador_ida_y_vuelta(tmp_path):
+    st = Storage(tmp_path)
+    d = st.load_players()
+    d["1 Mid laner"] = PlayerConfig("Ana", "http://c", "", "camera", visible=False)
+    st.save_players(d)
+    raw = json.loads((tmp_path / "players.json").read_text(encoding="utf-8"))
+    assert raw["players"]["1 Mid laner"]["visible"] is False
+    assert raw["players"]["1 Hard carry"]["visible"] is True
+    d2 = Storage(tmp_path).load_players()
+    assert d2["1 Mid laner"].visible is False and d2["1 Hard carry"].visible is True
+    assert d2 == d
+
+
+@pytest.mark.parametrize("valor", [None, 0, 1, "false", "no", [], {}])
+def test_mostrar_invalido_queda_visible(tmp_path, valor):
+    (tmp_path / "players.json").write_text(json.dumps({
+        "players": {"1 Hard carry": {"name": "Z", "visible": valor}}}), encoding="utf-8")
+    p = Storage(tmp_path).load_players()["1 Hard carry"]
+    assert p.visible is True and p.name == "Z"
+
+
+def test_players_json_de_v2_0_1_sin_mostrar_carga_todos_visibles(tmp_path):
+    (tmp_path / "players.json").write_text(json.dumps({
+        "teams": {"team1": "A", "team2": "B"},
+        "players": {s: {"name": s, "camera_url": "http://c", "photo_url": "", "use": "camera"}
+                    for s in PLAYER_SCENES},
+    }), encoding="utf-8")
+    d = Storage(tmp_path).load_players()
+    assert all(p.visible is True for p in d.values())
+    assert d["1 Hard carry"] == PlayerConfig("1 Hard carry", "http://c", "", "camera")
+
+
 def test_settings_v1_sin_host_ni_modo_inicial_usan_los_de_siempre(tmp_path):
     (tmp_path / "settings.json").write_text(
         json.dumps({"obs_port": 4455, "obs_password": "", "default_radiant_team": 1}), encoding="utf-8")
